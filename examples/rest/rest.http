@@ -1,0 +1,23 @@
+### activate coupler1
+POST http://localhost:4040/coupler1/activate
+
+### activate coupler2
+POST http://localhost:4040/coupler2/activate
+
+### activate coupler3
+POST http://localhost:4040/coupler3/activate
+
+### deactivate coupler3
+POST http://localhost:4040/coupler3/deactivate
+
+### change filter1
+POST http://localhost:4040/filter1/change/100
+
+### recall combination
+POST http://localhost:4040/combination/initiate
+
+### get coupler1
+GET http://localhost:4040/coupler1
+
+### get filter1
+GET http://localhost:4040/filter1

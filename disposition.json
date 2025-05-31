@@ -1,0 +1,208 @@
+{
+  "elements": {
+    "console1": {
+      "type": "MidiConsole",
+      "port": "^.*Midi Through Port-0.*$",
+      "references": [
+        "coupler1",
+        "coupler2",
+        "filter1",
+        "filter2",
+        "combination",
+        "captor"
+      ]
+    },
+    "console2": {
+      "type": "RestConsole",
+      "port": 4040
+    },
+    "console3": {
+      "type": "TermConsole"
+    },
+    "coupler1": {
+      "type": "Coupler",
+      "active": false,
+      "transpose": 0,
+      "midi_binding": {
+        "activate": [
+          176,
+          127,
+          1
+        ],
+        "deactivate": [
+          176,
+          127,
+          0
+        ],
+        "activated": [177, 127, 1],
+        "deactivated": [177, 127, 0]
+      },
+      "term_binding": {
+        "activate": "1",
+        "deactivate": "1"
+      },
+      "references": [
+        "register1"
+      ]
+    },
+    "coupler2": {
+      "type": "Coupler",
+      "active": true,
+      "transpose": 0,
+      "term_binding": {
+        "activate": "2",
+        "deactivate": "2"
+      },
+      "references": [
+        "register2"
+      ]
+    },
+    "filter1": {
+      "type": "MidiRange",
+      "value": 64,
+      "min": 16,
+      "max": 127,
+      "change": [
+        [
+          176,
+          7,
+          255
+        ]
+      ],
+      "term_binding": {
+        "increase": ".",
+        "decrease": ",",
+        "delta": 5
+      },
+      "midi_binding": {
+        "change": [
+          176,
+          7,
+          255
+        ],
+        "changed": [
+          177,
+          7,
+          255
+        ]
+      },
+      "references": [
+        "filter2"
+      ],
+      "_channels": []
+    },
+    "filter2": {
+      "type": "MidiAction",
+      "engage": [],
+      "disengage": [],
+      "references": [
+        "sound1"
+      ],
+      "_channels": []
+    },
+    "keyboard1": {
+      "type": "MidiKeyboard",
+      "port": "^Virtual Keyboard.*$",
+      "midi_binding": {
+        "key_down": [
+          144,
+          255,
+          255
+        ],
+        "key_up": [
+          128,
+          255,
+          255
+        ]
+      },
+      "references": [
+        "coupler1",
+        "coupler2"
+      ]
+    },
+    "register1": {
+      "type": "MidiRegister",
+      "references": [
+        "filter1"
+      ],
+      "acquire": [
+        [
+          192,
+          0,
+          0
+        ]
+      ],
+      "release": [
+        [
+          176,
+          121,
+          0
+        ]
+      ]
+    },
+    "register2": {
+      "type": "MidiRegister",
+      "references": [
+        "filter1"
+      ],
+      "acquire": [
+        [
+          192,
+          1,
+          0
+        ]
+      ],
+      "release": [
+        [
+          176,
+          121,
+          0
+        ]
+      ]
+    },
+    "combination": {
+      "type": "Combination",
+      "term_binding": {
+        "trigger": "c"
+      },
+      "references": {
+        "coupler1": true,
+        "coupler2": true,
+        "filter1": 64,
+        "filter2": true
+      }
+    },
+    "captor": {
+      "type": "Captor",
+      "term_binding": {
+        "activate": "x",
+        "deactivate": "x"
+      }
+    },
+    "sound1": {
+      "type": "FluidsynthSound",
+      "soundfont": "./examples/disposition.sf2",
+      "bank_offset": 0,
+      "gain": 0.3,
+      "interpolate": 4,
+      "settings": {
+        "synth_overflow_age": 0.55,
+        "synth_overflow_percussion": 0.1,
+        "synth_overflow_released": 0.5,
+        "synth_overflow_sustained": 0.1,
+        "synth_overflow_volume": 0.5,
+        "synth_sample_rate": 44100.0,
+        "synth_cpu_cores": 4,
+        "synth_midi_channels": 128,
+        "synth_polyphony": 640,
+        "audio_periods": 8,
+        "audio_period_size": 512,
+        "synth_reverb_active": 1,
+        "synth_reverb_damp": 0.4,
+        "synth_reverb_level": 0.65,
+        "synth_reverb_width": 90.0,
+        "synth_reverb_room_size": 0.75
+      }
+    }
+  }
+}

@@ -1,0 +1,129 @@
+/* === Base Styling === */
+body {
+    font-family: 'Georgia', serif;
+    background: #2c1508 url('https://www.transparenttextures.com/patterns/wood-pattern.png') repeat;
+    color: #fdf6e3;
+    margin: 0;
+    padding: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+h1 {
+    font-size: 2.8em;
+    color: #fdf6e3;
+    text-shadow: 1px 1px #000;
+    margin-bottom: 50px;
+    letter-spacing: 3px;
+    border-bottom: 3px double #a9865b;
+    padding-bottom: 10px;
+}
+
+/* === Layout for control groups === */
+div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 30px;
+}
+
+/* === Label container === */
+label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100px;
+    text-align: center;
+    position: relative;
+}
+
+/* === Shared knob styling for stops, captor, and combination === */
+input.stop {
+    appearance: none;
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #fefbe8, #ddd2b2);
+    border: 3px solid #b6a583;
+    box-shadow:
+            inset -2px -2px 6px #ffffffaa,
+            inset 2px 2px 6px #40341d,
+            0 5px 10px rgba(0,0,0,0.5);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.25s ease-in-out;
+}
+
+/* === pulled-out look === */
+input.stop:checked,
+input.stop:active {
+    background: radial-gradient(circle at 30% 30%, #f9e287, #d5b546);
+    border-color: #d4c175;
+    box-shadow:
+            inset -2px -2px 4px #fff0c0,
+            inset 2px 2px 4px #6a541e,
+            0 10px 16px rgba(0,0,0,0.6);
+    transform: scale(1.15) translateY(-3px);
+}
+
+/* === Label text on all knobs === */
+input.stop + span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 55px;
+    height: 55px;
+    transform: translate(-50%, -50%);
+    font-size: 0.65em;
+    line-height: 1.4;
+    font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+    color: #2d1a07;
+    pointer-events: none;
+    text-align: center;
+    text-shadow: 1px 1px 1px #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    text-transform: uppercase;
+    font-weight: bold;
+    transition: all 0.25s ease-in-out;
+}
+
+input.stop:active + span,
+input.stop:checked + span {
+    transform: translate(-50%, -50%) scale(1.15);
+}
+
+/* === Swell slider styling === */
+input.slider {
+    width: 180px;
+    height: 14px;
+    margin-top: 10px;
+    background: linear-gradient(to right, #c5bfa3, #4c3e2a);
+    border-radius: 7px;
+    appearance: none;
+    cursor: pointer;
+    box-shadow: inset 0 2px 3px #000;
+}
+
+input.slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    background: radial-gradient(circle at 30% 30%, #f4efe1, #a28f6e);
+    border: 2px solid #3d2d20;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #000;
+}
+
+input.slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    background: #dcd2c2;
+    border: 2px solid #5a4c3e;
+    border-radius: 50%;
+    cursor: pointer;
+}
