@@ -1,24 +1,21 @@
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 use std::error::Error;
-use crossbeam_channel::Sender;
-use midir::{MidiOutputConnection};
 use crate::disposition::fluidsynth::fluidsynth_send_messages;
 use crate::disposition::general::{Disposition, Element, Id};
 use crate::disposition::midi::{MidiRange, MidiAction};
 use crate::disposition::rest::rest_element_modified;
 use crate::disposition::term::{term_element_modified};
 use crate::midi::{set_midi_channel, set_wildcard};
-use crate::midi::midi_manager::MidiManager;
-use crate::processor::Event;
+use crate::processor::{Processor};
 
-pub fn midi_out_init(disposition: &mut Disposition, _: &Sender<Event>, midi_manager: &MidiManager) -> Result<(), Box<dyn Error>> {
+pub fn midi_out_init(disposition: &mut Disposition, processor: &mut Processor) -> Result<(), Box<dyn Error>> {
     for (id, element) in &mut disposition.elements {
         match element {
             Element::MidiSound(sound) => {
-                sound._connection = Some(connect_output(midi_manager, id, &sound.port)?);
+                sound._output = Some(processor.midi_output(id, &sound.port)?);
             },
             Element::MidiConsole(console) => {
-                console._output_connection = Some(connect_output(midi_manager, id, &console.port)?);
+                console._output = Some(processor.midi_output(id, &console.port)?);
             },
             _ => {},
         };
@@ -26,14 +23,6 @@ pub fn midi_out_init(disposition: &mut Disposition, _: &Sender<Event>, midi_mana
 
     Ok(())
 }
-
-fn connect_output(midi_manager: &MidiManager, id: &Id, port: &String) -> Result<MidiOutputConnection, Box<dyn Error>> {
-    let (name, connection) = midi_manager.connect_output(port)?;
-
-    info!("connected {} to '{}'", id, name);
-    Ok(connection)
-}
-
 
 fn send_messages_dispatch(disposition: &mut Disposition, ids: Vec<Id>, channel: String, release: bool, messages: Vec<Vec<u8>>) {
     for id in ids {
@@ -53,7 +42,7 @@ fn send_messages_dispatch(disposition: &mut Disposition, ids: Vec<Id>, channel: 
             None => {
                 warn!("unknown id {}", id);
             },
-            _ => {}
+            _ => {},
         };
     }
 }
@@ -63,20 +52,15 @@ fn send_messages(disposition: &mut Disposition, id: Id, channel: String, release
         Some(Element::MidiSound(sound)) => {
             let (channel_number, new) = sound._channels.acquire(channel.as_str());
             if channel_number < 16 {
-                match sound._connection {
-                    Some(ref mut connection) => {
+                match sound._output {
+                    Some(ref mut output) => {
                         for message in messages.iter() {
                             debug!("midi sound {} send '{}' {} '{:?}'", id, channel, channel_number, message);
                             let channel_message = set_midi_channel(message, channel_number);
-                            match connection.send(&channel_message) {
-                                Err(e) => {
-                                    error!("failed to send message: {}", e);
-                                }
-                                _ => {}
-                            }
+                            output.send(&channel_message);
                         }
                     },
-                    _ => {}
+                    _ => {},
                 }
             } else {
                 if new {
@@ -115,8 +99,8 @@ fn send_messages(disposition: &mut Disposition, id: Id, channel: String, release
 
             let references = action.references.clone();
             send_messages_dispatch(disposition, references, channel, release, messages);
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 
@@ -137,8 +121,8 @@ pub fn midi_change(disposition: &mut Disposition, id: Id, mut value: u32) {
             } else {
                 false
             }
-        }
-        _ => false
+        },
+        _ => false,
     };
 
     if modified {
@@ -170,8 +154,8 @@ pub fn midi_activate(disposition: &mut Disposition, id: Id, active: bool) {
             } else {
                 false
             }
-        }
-        _ => false
+        },
+        _ => false,
     };
 
     if modified {
@@ -211,13 +195,13 @@ pub fn midi_register_press_key(disposition: &mut Disposition, id: Id, key: u8, d
                 },
                 _ => {
                     vec![message]
-                }
+                },
             };
 
             let references = register.references.clone();
             send_messages_dispatch(disposition, references, id.0, pressed_keys == 0, messages);
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 
@@ -247,8 +231,8 @@ pub fn midi_element_modified(disposition: &mut Disposition, id: Id) {
                 let message = set_wildcard(&*binding.changed, value);
                 midi_console_send(disposition, id.clone(), message)
             }
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 
@@ -261,13 +245,13 @@ fn midi_console_send(disposition: &mut Disposition, reference: Id, message: Vec<
         match element {
             Element::MidiConsole(console) => {
                 if console.references.contains(&reference) {
-                    if let Some(ref mut connection) = console._output_connection {
+                    if let Some(ref mut output) = console._output {
                         debug!("midi console {} send {} '{:?}'", id, reference, message);
-                        connection.send(message.as_slice()).unwrap();
+                        output.send(message.as_slice());
                     }
                 }
             },
-            _ => {}
+            _ => {},
         }
     };
 }

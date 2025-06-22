@@ -1,4 +1,7 @@
-pub mod midi_manager;
+use std::error::Error;
+use log::info;
+use midir::{MidiInput, MidiOutput};
+
 pub mod channel_pool;
 
 pub fn set_midi_channel(message: &Vec<u8>, new_channel: u8) -> Vec<u8> {
@@ -34,4 +37,19 @@ pub fn set_wildcard(message: &[u8], value: u8) -> Vec<u8> {
         .iter()
         .map(|byte| if *byte == 255 { value } else { *byte })
         .collect()
+}
+
+
+pub fn log_midi() -> Result<(), Box<dyn Error>> {
+    let midi_in = MidiInput::new("anabeeb")?;
+    for port in midi_in.ports() {
+        info!("Input Port '{}'", midi_in.port_name(&port)?);
+    }
+
+    let midi_out = MidiOutput::new("anabeeb")?;
+    for port in midi_out.ports() {
+        info!("Output Port '{}'", midi_out.port_name(&port)?);
+    }
+
+    Ok(())
 }

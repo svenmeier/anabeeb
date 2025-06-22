@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use crossbeam_channel::Sender;
 use serde::{Deserialize, Serialize};
 use log::{debug, info, warn};
 use schemars::JsonSchema;
@@ -14,7 +13,7 @@ use crate::{print_error, print_info};
 use crate::disposition::general::CombinationCapture::{Active, Value};
 use crate::disposition::midi::{MidiMomentaryBinding, MidiConsole, MidiRange, MidiKeyboard, MidiRegister, MidiSound, MidiSwitchBinding, MidiAction};
 use crate::disposition::midi_out::{midi_change};
-use crate::processor::Event;
+use crate::processor::{Processor};
 
 #[derive(Serialize, Deserialize,JsonSchema)]
 pub struct Disposition {
@@ -116,7 +115,7 @@ pub enum CombinationCapture {
     Value(u32),
 }
 
-pub fn general_init(_: &mut Disposition, _: &Sender<Event>) -> Result<(), Box<dyn Error>> {
+pub fn general_init(_: &mut Disposition, _: &Processor) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
@@ -178,7 +177,7 @@ pub fn activate(disposition: &mut Disposition, id: Id, active: bool) {
                 false
             }
         },
-        _ => false
+        _ => false,
     };
     
     if modified {
@@ -224,7 +223,7 @@ pub fn press_key(disposition: &mut Disposition, id: Id, key: u8, down: bool) {
                     }
                 }
             }
-        }
+        },
         _ => {},
     };
 }
@@ -262,7 +261,7 @@ fn recall(disposition: &mut Disposition, id: Id) {
                             Active(active) => {
                                 activate(disposition, id, active);
                             },
-                            _ => {}
+                            _ => {},
                         }
                     },
                     Some(Element::MidiAction(_)) => {
@@ -270,7 +269,7 @@ fn recall(disposition: &mut Disposition, id: Id) {
                             Active(active) => {
                                 midi_activate(disposition, id, active);
                             },
-                            _ => {}
+                            _ => {},
                         }
                     },
                     Some(Element::MidiRange(_)) => {
@@ -278,14 +277,14 @@ fn recall(disposition: &mut Disposition, id: Id) {
                             Value(value) => {
                                 midi_change(disposition, id, value);
                             },
-                            _ => {}
+                            _ => {},
                         }
                     },
-                    _ => {}
+                    _ => {},
                 }
             }
         },
-        _ => {}
+        _ => {},
     };
 }
 

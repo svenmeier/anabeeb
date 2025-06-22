@@ -22,20 +22,20 @@ pub fn send(synth: &mut Synth, channel: u8, message: Vec<u8>) {
     match status {
         NOTE_ON => {
             synth.noteon(channel as i32, data1, data2);
-        }
+        },
         NOTE_OFF => {
             synth.noteoff(channel as i32, data1);
-        }
+        },
         PROGRAM_CHANGE => {
             synth.program_change(channel as i32, data1);
-        }
+        },
         CONTROL_CHANGE => {
             synth.cc(channel as i32, data1, data2);
-        }
+        },
         PITCH_BEND => {
             synth.pitch_bend(channel as i32, (data2 * 128) + data1);
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 

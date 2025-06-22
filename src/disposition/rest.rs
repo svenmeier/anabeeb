@@ -12,7 +12,7 @@ use crate::disposition::general::{activate, combination_trigger, Disposition, El
 use crate::disposition::general::Element::{Captor, Combination, Coupler, MidiRange, MidiAction};
 use crate::disposition::midi_out::{midi_activate, midi_change};
 use crate::disposition::rest::Command::{Activate, Deactivate, NoOp, Trigger};
-use crate::processor::Event;
+use crate::processor::{Event, Processor};
 use std::time::Duration;
 use crate::rouille::Client;
 
@@ -34,16 +34,16 @@ pub enum Command {
 
 type Clients = Arc<Mutex<Vec<Client>>>;
 
-pub fn rest_init(disposition: &mut Disposition, events: &Sender<Event>) -> Result<(), Box<dyn Error>> {
+pub fn rest_init(disposition: &mut Disposition, processor: &Processor) -> Result<(), Box<dyn Error>> {
     for (_, element) in &mut disposition.elements {
         match element {
             Element::RestConsole(console) => {
                 let clients = Arc::new(Mutex::new(vec![]));
 
-                Some(start_server(console.port, events.clone(), clients.clone()));
+                Some(start_server(console.port, processor.events.clone(), clients.clone()));
 
                 console._clients = Some(clients);
-            }
+            },
             _ => {},
         };
     }
@@ -121,7 +121,7 @@ fn handle_post(events: &Sender<Event>, caps: Captures) -> Response {
             .and_then(|m| m.as_str().parse::<u32>().ok())
             .map(Command::Change)
             .unwrap_or(NoOp),
-        _ => NoOp
+        _ => NoOp,
     };
     send_and_receive(&events, id, command)
 }
@@ -185,7 +185,7 @@ fn rest_write(disposition: &mut Disposition, id: &Id, command: &Command) {
                 midi_change(disposition, id.clone(), value.clone())
             }
         },
-        _ => {}
+        _ => {},
     }
 }
 
@@ -205,11 +205,11 @@ pub fn rest_element_modified(disposition: &Disposition, id: Id) {
                         Ok(_) => {
                             debug!("modification sent to websocket client '{}'", client.id);
                             true
-                        }
+                        },
                         Err(e) => {
                             info!("disconnected from websocket client '{}': {:?}", client.id, e);
                             false
-                        }
+                        },
                     }
                 });
             }
@@ -224,6 +224,6 @@ fn rest_read(disposition: &Disposition, id: &Id) -> Option<String> {
             map.insert(id, element);
             Some(serde_json::to_string_pretty(&map).unwrap())
         },
-        _ => None
+        _ => None,
     }
 }

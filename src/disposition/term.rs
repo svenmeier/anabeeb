@@ -12,7 +12,7 @@ use crate::disposition::general::{activate, combination_trigger, quit, save, Dis
 use crate::disposition::midi_in::midi_panic;
 use crate::disposition::midi_out::{midi_activate, midi_change};
 use crate::print_info;
-use crate::processor::Event;
+use crate::processor::{Event, Processor};
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TermSwitchBinding {
@@ -41,12 +41,12 @@ pub struct TermMomentaryBinding {
 pub struct TermConsole {
 }
 
-pub fn term_init(disposition: &mut Disposition, events: &Sender<Event>) -> Result<(), Box<dyn Error>> {
+pub fn term_init(disposition: &mut Disposition, processor: &Processor) -> Result<(), Box<dyn Error>> {
     for (id, element) in &disposition.elements {
         match element {
             Element::TermConsole(_) => {
-                read_and_send(id.clone(), events.clone())?;
-            }
+                read_and_send(id.clone(), processor.events.clone())?;
+            },
             _ => {},
         };
     }
@@ -91,20 +91,20 @@ pub fn term_process(disposition: &mut Disposition, event: &Event) {
         match key.clone().into() {
             key!(shift-p) => {
                 midi_panic(disposition);
-            }
+            },
             key!(ctrl-s) => {
                 save(disposition);
-            }
+            },
             key!(ctrl-q) => {
                 match disable_raw_mode() {
                     Err(e) => {
                         warn!("Failed to disable raw mode: {}", e);
                     },
-                    _ => {}
+                    _ => {},
                 }
                 quit();
             },
-            _ => {}
+            _ => {},
         }
     }
 }
@@ -122,7 +122,7 @@ fn term_match_bindings(disposition: &mut Disposition, key: KeyEvent) {
                         } else if coupler.active && is_char(key, binding.deactivate) {
                             activate(disposition, id.clone(), false);
                         }
-                    }
+                    },
                     _ => {},
                 }
             },
@@ -134,7 +134,7 @@ fn term_match_bindings(disposition: &mut Disposition, key: KeyEvent) {
                         } else if captor.active && is_char(key, binding.deactivate) {
                             activate(disposition, id.clone(), false);
                         }
-                    }
+                    },
                     _ => {},
                 }
             },
@@ -144,7 +144,7 @@ fn term_match_bindings(disposition: &mut Disposition, key: KeyEvent) {
                         if is_char(key, binding.trigger) {
                             combination_trigger(disposition, id.clone());
                         }
-                    }
+                    },
                     _ => {},
                 }
             },
@@ -156,7 +156,7 @@ fn term_match_bindings(disposition: &mut Disposition, key: KeyEvent) {
                         } else if filter.active && is_char(key, binding.deactivate) {
                             midi_activate(disposition, id.clone(), false);
                         }
-                    }
+                    },
                     _ => {},
                 }
             },
@@ -173,7 +173,7 @@ fn term_match_bindings(disposition: &mut Disposition, key: KeyEvent) {
                     },
                     _ => {},
                 }
-            }
+            },
             _ => {},
         }
     }
@@ -197,6 +197,6 @@ pub fn term_element_modified(disposition: &mut Disposition, id: Id) {
         Some(Element::MidiRange(filter)) => {
             print_info!("range {} changed {:.2}", id, filter.value);
         },
-        _ => {}
+        _ => {},
     }
 }

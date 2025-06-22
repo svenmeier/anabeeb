@@ -1,42 +1,25 @@
-use crossbeam_channel::Sender;
 use std::error::Error;
-use log::{error, info, warn};
-use midir::MidiInputConnection;
+use log::{info, warn};
 use crate::disposition::general::{activate, combination_trigger, press_key_dispatch, Disposition, Element, Id};
 use crate::disposition::midi_out::{midi_activate, midi_change};
 use crate::midi::{get_wildcard};
-use crate::midi::midi_manager::MidiManager;
 use crate::print_info;
-use crate::processor::Event;
+use crate::processor::{Event, Processor};
 
-pub fn midi_in_init(disposition: &mut Disposition, events: &Sender<Event>, midi_manager: &MidiManager) -> Result<(), Box<dyn Error>> {
+pub fn midi_in_init(disposition: &mut Disposition, processor: &mut Processor) -> Result<(), Box<dyn Error>> {
     for (id, element) in &mut disposition.elements {
         match element {
             Element::MidiKeyboard(keyboard) => {
-                keyboard._input_connection = Some(connect_input(midi_manager, id, &keyboard.port, events)?);
-            }
+                processor.midi_input(id, &keyboard.port)?;
+            },
             Element::MidiConsole(console) => {
-                console._input_connection = Some(connect_input(midi_manager, id, &console.port, events)?);
-            }
+                processor.midi_input(id, &console.port)?;
+            },
             _ => {},
         };
     }
 
     Ok(())
-}
-
-fn connect_input(midi_manager: &MidiManager, id: &Id, port: &String, events: &Sender<Event>) -> Result<MidiInputConnection<()>, Box<dyn Error>> {
-    let id_clone = id.clone();
-    let events_clone = events.clone();
-
-    let (name, connection) = midi_manager.connect_input(port, move |msg| {
-        events_clone
-            .send(Event::MidiIn(id_clone.clone(), msg))
-            .unwrap_or_else(|e| error!("failed to process midi event: {}", e));
-    })?;
-    
-    info!("connected {} to '{}'", id, name);
-    Ok(connection)
 }
 
 pub fn midi_in_process(disposition: &mut Disposition, event: &Event) {
@@ -81,7 +64,7 @@ fn midi_match_bindings(disposition: &mut Disposition, ids: Vec<Id>, message: Vec
                         } else if binding.deactivate == message {
                             activate(disposition, id, false);
                         }
-                    }
+                    },
                     _ => {},
                 }
             },
@@ -93,7 +76,7 @@ fn midi_match_bindings(disposition: &mut Disposition, ids: Vec<Id>, message: Vec
                         } else if binding.deactivate == message {
                             activate(disposition, id, false);
                         }
-                    }
+                    },
                     _ => {},
                 }
             },
@@ -103,7 +86,7 @@ fn midi_match_bindings(disposition: &mut Disposition, ids: Vec<Id>, message: Vec
                         if binding.trigger == message {
                             combination_trigger(disposition, id);
                         }
-                    }
+                    },
                     _ => {},
                 }
             },
@@ -115,7 +98,7 @@ fn midi_match_bindings(disposition: &mut Disposition, ids: Vec<Id>, message: Vec
                         } else if binding.deactivate == message {
                             midi_activate(disposition, id, false);
                         }
-                    }
+                    },
                     _ => {},
                 }
             },
@@ -129,7 +112,7 @@ fn midi_match_bindings(disposition: &mut Disposition, ids: Vec<Id>, message: Vec
 
                                 midi_change(disposition, id, value);
                             },
-                            _ => {}
+                            _ => {},
                         }
                     },
                     _ => {},
@@ -150,8 +133,8 @@ pub fn midi_panic(disposition: &mut Disposition) {
         match disposition.elements.get_mut(&id) {
             Some(Element::MidiKeyboard(_)) => {
                 midi_keyboard_panic(disposition, id);
-            }
-            _ => {}
+            },
+            _ => {},
         };
     }
 }
@@ -166,6 +149,6 @@ fn midi_keyboard_panic(disposition: &mut Disposition, id: Id) {
                 press_key_dispatch(disposition, references.clone(), key, false);
             }
         },
-        _ => {}
+        _ => {},
     }
 }

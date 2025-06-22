@@ -38,7 +38,7 @@ impl ChannelPool {
             Some(channel) => {
                 debug!("midi sound {} released channel {}", id, channel);
             },
-            _ => {}
+            _ => {},
         }
     }
 }

@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
-use midir::{MidiInputConnection, MidiOutputConnection};
 use schemars::JsonSchema;
 use crate::disposition::general::Id;
 use crate::disposition::term::{TermContinuousBinding, TermSwitchBinding};
 use crate::midi::channel_pool::ChannelPool;
+use crate::processor::Output;
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MidiSwitchBinding {
@@ -48,10 +48,7 @@ pub struct MidiConsole {
     pub references: Vec<Id>,
 
     #[serde(skip)]
-    pub _input_connection: Option<MidiInputConnection<()>>,
-
-    #[serde(skip)]
-    pub _output_connection: Option<MidiOutputConnection>,
+    pub _output: Option<Output>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -65,9 +62,6 @@ pub struct MidiKeyboard {
 
     #[serde(skip, default)]
     pub _pressed_keys: HashSet<u8>,
-
-    #[serde(skip)]
-    pub _input_connection: Option<MidiInputConnection<()>>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -133,7 +127,7 @@ pub struct MidiSound {
     pub port: String,
 
     #[serde(skip)]
-    pub _connection: Option<MidiOutputConnection>,
+    pub _output: Option<Output>,
 
     #[serde(skip, default)]
     pub _channels: ChannelPool,

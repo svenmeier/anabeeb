@@ -1,5 +1,4 @@
 use std::error::Error;
-use crossbeam_channel::Sender;
 use fluidsynth::audio::AudioDriver;
 use fluidsynth::synth::{Synth};
 use log::{debug, error, info};
@@ -9,7 +8,7 @@ use crate::disposition::general::{Disposition, Element, Id};
 use crate::fluidsynth::{send, synth_init_logging};
 use crate::io::combine_paths;
 use crate::midi::channel_pool::ChannelPool;
-use crate::processor::Event;
+use crate::processor::{Processor};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct FluidsynthSound {
@@ -52,7 +51,7 @@ pub struct FluidsynthSettings {
     audio_period_size: i32,
 }
 
-pub fn fluidsynth_init(disposition: &mut Disposition, _: &Sender<Event>) -> Result<(), Box<dyn Error>> {
+pub fn fluidsynth_init(disposition: &mut Disposition, _: &Processor) -> Result<(), Box<dyn Error>> {
 
     synth_init_logging();
 
@@ -63,7 +62,7 @@ pub fn fluidsynth_init(disposition: &mut Disposition, _: &Sender<Event>) -> Resu
             Element::FluidsynthSound(sound) => {
                 sound._synth = Some(create_synth(id, path, sound)?);
             },
-            _ => {}
+            _ => {},
         }
     }
 
@@ -102,7 +101,7 @@ fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, 
             info!("loaded soundfont for {} from '{}'", id, combined_path);
             soundfont_id
         },
-        None => return Err(format!("Failed to load SoundFont '{}'", combined_path).as_str().into())
+        None => return Err(format!("Failed to load SoundFont '{}'", combined_path).as_str().into()),
     };
     
     synth.set_interp_method(-1, sound.interpolate);
@@ -135,7 +134,7 @@ pub fn fluidsynth_send_messages(disposition: &mut Disposition, id: Id, channel: 
                         sound._channels.release(channel.as_str());
                     }
                 },
-                _ => {}
+                _ => {},
             }
         },
         _ => {}

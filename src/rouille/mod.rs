@@ -25,7 +25,7 @@ impl Client {
             None => {
                 let websocket = self.receiver.recv().map_err(|_| SendError::Closed)?;
                 self.websocket.insert(websocket)
-            }
+            },
         };
 
         websocket.send_text(text)

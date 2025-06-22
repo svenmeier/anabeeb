@@ -23,10 +23,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         Err(e) => {
             print_error!("failed to load disposition '{}'", e);
             exit(1);
-        }
+        },
     };
     
-    let processor = Processor::new();
+    let mut processor = Processor::new();
 
     print_info!("initializing disposition");
     processor.init(&mut disposition).unwrap_or_else(|e| {
@@ -50,8 +50,8 @@ fn init_logging(log_to_console: bool) {
     match std::env::var("RUST_LOG") {
         Err(_) => {
             builder.filter_level(LevelFilter::Info);
-        }
-        _ => {}
+        },
+        _ => {},
     }
     if log_to_console {
         // needed for term raw mode
