@@ -1,0 +1,28 @@
+{
+  "$schema": "./schemas/memory.schema.json",
+  "title": "Memory levels",
+  "levels": [
+    {
+      "title": "First level",
+      "references": {
+        "combination": {
+          "coupler1": true,
+          "coupler2": true,
+          "filter1": 30,
+          "filter2": true
+        }
+      }
+    },
+    {
+      "title": "Second level",
+      "references": {
+        "combination": {
+          "coupler1": false,
+          "coupler2": false,
+          "filter1": 64,
+          "filter2": false
+        }
+      }
+    }
+  ]
+}

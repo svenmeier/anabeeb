@@ -12,57 +12,80 @@
         const id = element.id;
         const action = element.checked ? 'activate' : 'deactivate';
 
-        fetch(`http://${config.host}:${config.port}/${id}/${action}`, {
-            method: 'POST',
-        });
+        post(`http://${config.host}:${config.port}/element/${id}/${action}`);
     }
 
     function change(element) {
         const id = element.id;
         const value = parseInt(element.value);
 
-        fetch(`http://${config.host}:${config.port}/${id}/change/${value}`, {
-            method: 'POST',
-        });
+        post(`http://${config.host}:${config.port}/element/${id}/change/${value}`);
     }
 
     function trigger(element) {
         const id = element.id;
 
-        fetch(`http://${config.host}:${config.port}/${id}/trigger`, {
+        post(`http://${config.host}:${config.port}/element/${id}/trigger`);
+    }
+
+    function post(url) {
+        fetch(url, {
             method: 'POST',
+        })
+        .catch((error) => {
+            console.error(`Error posting`, error);
+            onError(error);
         });
     }
 
     function updateElement(htmlElement, element) {
-        if (htmlElement.type === 'checkbox') {
-            htmlElement.checked = (element.active === true);
-        } else if (htmlElement.type === 'range') {
-            htmlElement.min = element.min;
-            htmlElement.max = element.max;
-            htmlElement.value = element.value;
+        switch (htmlElement.type) {
+            case "checkbox":
+                htmlElement.checked = (element.active === true);
+                break;
+            case 'range':
+            case 'number':
+                htmlElement.min = element.min;
+                htmlElement.max = element.max;
+                htmlElement.value = element.value;
+                break;
         }
     }
 
-    function initializeElement(element) {
-        if (element.type === 'button') {
-            element.addEventListener("click", () => trigger(element));
-            return;
-        } else if (element.type === 'checkbox') {
-            element.addEventListener("click", () => toggle(element));
-        } else if (element.type === 'range') {
-            element.addEventListener("input", () => change(element));
+    function initializeElement(htmlElement) {
+        switch (htmlElement.type) {
+            case 'button':
+                htmlElement.addEventListener("click", () => trigger(htmlElement));
+                return;
+            case 'checkbox':
+                htmlElement.addEventListener("click", () => toggle(htmlElement));
+                break;
+            case 'range':
+            case 'number':
+                htmlElement.addEventListener("input", () => change(htmlElement));
+                break;
         }
 
-        fetch(`http://${config.host}:${config.port}/${element.id}`)
+        const id = htmlElement.id;
+        fetch(`http://${config.host}:${config.port}/element/${id}`)
             .then((response) => {
-                if (!response.ok) throw new Error(`not ok`);
+                if (!response.ok) throw new Error(`response is not ok`);
                 return response.json();
             })
             .then((data) => {
-                updateElement(element, data[element.id])
+                updateElement(htmlElement, data[id])
             })
-            .catch((error) => console.error(`Error initializing ${id}:`, error));
+            .catch((error) => {
+                console.error(`Error initializing '${id}':`, error);
+                onError(error);
+            });
+    }
+
+    function onError(error) {
+        const element = document.getElementById('errors');
+        if (element) {
+            element.style.display = 'block';
+        }
     }
 
     window.addEventListener('load', () => {

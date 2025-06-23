@@ -20,13 +20,17 @@ h1 {
     padding-bottom: 10px;
 }
 
-/* === Layout for control groups === */
-div {
+/* === Layout for elements === */
+.elements {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 40px;
-    margin-bottom: 30px;
+    gap: 2rem;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1;
 }
 
 /* === Label container === */
@@ -34,7 +38,6 @@ label {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 100px;
     text-align: center;
     position: relative;
 }
@@ -91,10 +94,25 @@ input.stop + span {
     font-weight: bold;
     transition: all 0.25s ease-in-out;
 }
-
 input.stop:active + span,
 input.stop:checked + span {
     transform: translate(-50%, -50%) scale(1.15);
+}
+
+/* === Counter styling === */
+input.counter {
+    background: #d9dbd4;
+    color: #7d7a7a;
+    font-family: 'Courier New', monospace;
+    font-size: 1.5em;
+    letter-spacing: 0.1em;
+    padding: 0.2em;
+    width: 5em;
+    border: 2px solid #444;
+    border-radius: 6px;
+    font-weight: bold;
+    text-align: right;
+    box-shadow: inset 0px 5px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* === Swell slider styling === */
@@ -108,7 +126,6 @@ input.slider {
     cursor: pointer;
     box-shadow: inset 0 2px 3px #000;
 }
-
 input.slider::-webkit-slider-thumb {
     appearance: none;
     width: 24px;
@@ -118,7 +135,6 @@ input.slider::-webkit-slider-thumb {
     border-radius: 50%;
     box-shadow: 0 0 6px #000;
 }
-
 input.slider::-moz-range-thumb {
     width: 24px;
     height: 24px;
@@ -126,4 +142,21 @@ input.slider::-moz-range-thumb {
     border: 2px solid #5a4c3e;
     border-radius: 50%;
     cursor: pointer;
+}
+
+/* === error === */
+#errors {
+    display: none;
+    z-index: 9999;
+    color: #fff4f4;
+    background: #a10000;
+    padding: 1em 1.5em;
+    border-radius: 8px;
+    border: 2px solid #ffdddd;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 90%;
 }

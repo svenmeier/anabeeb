@@ -7,12 +7,12 @@ ARCH=$(uname -m)
 DEB=$(find target/debian -name "*.deb" | head -n 1)
 EXAMPLES="examples"
 SCHEMAS="schemas"
-DISPOSITION="disposition.json"
+JSON="*.json"
 ZIP="target/anabeeb-linux-$ARCH.zip"
 
 rm -f "$ZIP"
 zip -j "$ZIP" $DEB
-zip "$ZIP" $DISPOSITION
+zip "$ZIP" $JSON
 zip -r "$ZIP" $EXAMPLES
 zip -r "$ZIP" $SCHEMAS
 

@@ -3,133 +3,26 @@
   "title": "Disposition",
   "type": "object",
   "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "elements": {
       "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/Element"
-      }
+      "patternProperties": {
+        "^\\S+$": {
+          "$ref": "#/$defs/Element"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [
     "elements"
   ],
   "$defs": {
-    "Captor": {
-      "type": "object",
-      "properties": {
-        "active": {
-          "type": "boolean",
-          "default": false
-        },
-        "midi_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MidiSwitchBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "term_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TermSwitchBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "Combination": {
-      "type": "object",
-      "properties": {
-        "midi_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MidiMomentaryBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "references": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/CombinationCapture"
-          },
-          "default": {}
-        },
-        "term_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TermMomentaryBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "CombinationCapture": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
-      ]
-    },
-    "Coupler": {
-      "type": "object",
-      "properties": {
-        "active": {
-          "type": "boolean",
-          "default": false
-        },
-        "midi_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MidiSwitchBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "references": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Id"
-          }
-        },
-        "term_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TermSwitchBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "transpose": {
-          "type": "integer",
-          "format": "int8",
-          "default": 0,
-          "maximum": 127,
-          "minimum": -128
-        }
-      }
-    },
     "Element": {
       "oneOf": [
         {
@@ -154,6 +47,19 @@
             }
           },
           "$ref": "#/$defs/Captor",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Memory"
+            }
+          },
+          "$ref": "#/$defs/Memory",
           "required": [
             "type"
           ]
@@ -290,31 +196,594 @@
         }
       ]
     },
-    "FluidsynthSettings": {
+    "MidiSwitchBinding": {
       "type": "object",
       "properties": {
-        "audio_driver": {
+        "activate": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        },
+        "deactivate": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        },
+        "activated": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        },
+        "deactivated": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        }
+      }
+    },
+    "TermSwitchBinding": {
+      "type": "object",
+      "properties": {
+        "activate": {
+          "type": "string"
+        },
+        "deactivate": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "activate",
+        "deactivate"
+      ]
+    },
+    "Id": {
+      "type": "string",
+      "pattern": "^\\S+$"
+    },
+    "Coupler": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean",
+          "default": false
+        },
+        "transpose": {
+          "type": "integer",
+          "format": "int8",
+          "minimum": -128,
+          "maximum": 127,
+          "default": 0
+        },
+        "midi_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "term_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "default": []
+        }
+      }
+    },
+    "Captor": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean",
+          "default": false
+        },
+        "midi_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "term_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "TermContinuousBinding": {
+      "type": "object",
+      "properties": {
+        "increase": {
+          "type": "string"
+        },
+        "decrease": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "increase",
+        "decrease",
+        "delta"
+      ]
+    },
+    "MidiContinuousBinding": {
+      "type": "object",
+      "properties": {
+        "change": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        }
+      }
+    },
+    "Memory": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 0
+        },
+        "min": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "state": {
+          "type": "string",
+          "default": "memory.json"
+        },
+        "term_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ]
+    },
+    "MidiMomentaryBinding": {
+      "type": "object",
+      "properties": {
+        "trigger": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        }
+      }
+    },
+    "TermMomentaryBinding": {
+      "type": "object",
+      "properties": {
+        "trigger": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "trigger"
+      ]
+    },
+    "CombinationCapture": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      ]
+    },
+    "Combination": {
+      "type": "object",
+      "properties": {
+        "midi_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiMomentaryBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "term_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermMomentaryBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "default": []
+        },
+        "state": {
+          "type": "object",
+          "patternProperties": {
+            "^\\S+$": {
+              "$ref": "#/$defs/CombinationCapture"
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        }
+      }
+    },
+    "RestConsole": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
+          "minimum": 0,
+          "maximum": 65535
+        }
+      }
+    },
+    "TermConsole": {
+      "type": "object"
+    },
+    "MidiConsole": {
+      "type": "object",
+      "properties": {
+        "port": {
           "type": [
             "string",
             "null"
           ]
         },
-        "audio_period_size": {
-          "type": "integer",
-          "format": "int32"
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "default": []
+        }
+      }
+    },
+    "MidiKeyboardBinding": {
+      "type": "object",
+      "properties": {
+        "key_down": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
         },
-        "audio_periods": {
-          "type": "integer",
-          "format": "int32"
+        "key_up": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        }
+      }
+    },
+    "MidiKeyboard": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
-        "synth_cpu_cores": {
-          "type": "integer",
-          "format": "int32"
+        "midi_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiKeyboardBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        "synth_midi_channels": {
-          "type": "integer",
-          "format": "int32"
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "default": []
+        }
+      }
+    },
+    "MidiRegister": {
+      "type": "object",
+      "properties": {
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "default": []
         },
+        "acquire": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0,
+              "maximum": 255
+            }
+          }
+        },
+        "release": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0,
+              "maximum": 255
+            }
+          }
+        }
+      },
+      "required": [
+        "acquire",
+        "release"
+      ]
+    },
+    "MidiRange": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 0
+        },
+        "min": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "change": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0,
+              "maximum": 255
+            }
+          }
+        },
+        "term_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "min",
+        "max",
+        "change"
+      ]
+    },
+    "MidiAction": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean",
+          "default": false
+        },
+        "engage": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0,
+              "maximum": 255
+            }
+          }
+        },
+        "disengage": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0,
+              "maximum": 255
+            }
+          }
+        },
+        "term_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "engage",
+        "disengage"
+      ]
+    },
+    "MidiSound": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "FluidsynthSettings": {
+      "type": "object",
+      "properties": {
         "synth_overflow_age": {
           "type": "number",
           "format": "double"
@@ -335,6 +804,18 @@
           "type": "number",
           "format": "double"
         },
+        "synth_sample_rate": {
+          "type": "number",
+          "format": "double"
+        },
+        "synth_cpu_cores": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "synth_midi_channels": {
+          "type": "integer",
+          "format": "int32"
+        },
         "synth_polyphony": {
           "type": "integer",
           "format": "int32"
@@ -351,17 +832,27 @@
           "type": "number",
           "format": "double"
         },
-        "synth_reverb_room_size": {
-          "type": "number",
-          "format": "double"
-        },
         "synth_reverb_width": {
           "type": "number",
           "format": "double"
         },
-        "synth_sample_rate": {
+        "synth_reverb_room_size": {
           "type": "number",
           "format": "double"
+        },
+        "audio_driver": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "audio_periods": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "audio_period_size": {
+          "type": "integer",
+          "format": "int32"
         }
       },
       "required": [
@@ -386,6 +877,10 @@
     "FluidsynthSound": {
       "type": "object",
       "properties": {
+        "soundfont": {
+          "type": "string",
+          "default": "disposition.sf2"
+        },
         "bank_offset": {
           "type": "integer",
           "format": "int32",
@@ -401,414 +896,12 @@
         },
         "settings": {
           "$ref": "#/$defs/FluidsynthSettings"
-        },
-        "soundfont": {
-          "type": "string"
         }
       },
       "required": [
-        "soundfont",
         "gain",
         "interpolate",
         "settings"
-      ]
-    },
-    "Id": {
-      "type": "string",
-      "pattern": "^\\S+$"
-    },
-    "MidiAction": {
-      "type": "object",
-      "properties": {
-        "active": {
-          "type": "boolean",
-          "default": false
-        },
-        "disengage": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0
-            }
-          }
-        },
-        "engage": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0
-            }
-          }
-        },
-        "midi_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MidiSwitchBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "references": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Id"
-          }
-        },
-        "term_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TermSwitchBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "engage",
-        "disengage"
-      ]
-    },
-    "MidiConsole": {
-      "type": "object",
-      "properties": {
-        "port": {
-          "type": "string"
-        },
-        "references": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Id"
-          }
-        }
-      },
-      "required": [
-        "port"
-      ]
-    },
-    "MidiContinuousBinding": {
-      "type": "object",
-      "properties": {
-        "change": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        },
-        "changed": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        }
-      }
-    },
-    "MidiKeyboard": {
-      "type": "object",
-      "properties": {
-        "midi_binding": {
-          "$ref": "#/$defs/MidiKeyboardBinding"
-        },
-        "port": {
-          "type": "string"
-        },
-        "references": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Id"
-          }
-        }
-      },
-      "required": [
-        "port",
-        "midi_binding"
-      ]
-    },
-    "MidiKeyboardBinding": {
-      "type": "object",
-      "properties": {
-        "key_down": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        },
-        "key_up": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        }
-      }
-    },
-    "MidiMomentaryBinding": {
-      "type": "object",
-      "properties": {
-        "trigger": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        }
-      }
-    },
-    "MidiRange": {
-      "type": "object",
-      "properties": {
-        "change": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0
-            }
-          }
-        },
-        "max": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "midi_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MidiContinuousBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "min": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "references": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Id"
-          }
-        },
-        "term_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TermContinuousBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "value": {
-          "type": "integer",
-          "format": "uint32",
-          "default": 0,
-          "minimum": 0
-        }
-      },
-      "required": [
-        "min",
-        "max",
-        "change"
-      ]
-    },
-    "MidiRegister": {
-      "type": "object",
-      "properties": {
-        "acquire": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0
-            }
-          }
-        },
-        "references": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/Id"
-          }
-        },
-        "release": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8",
-              "maximum": 255,
-              "minimum": 0
-            }
-          }
-        }
-      },
-      "required": [
-        "acquire",
-        "release"
-      ]
-    },
-    "MidiSound": {
-      "type": "object",
-      "properties": {
-        "port": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "port"
-      ]
-    },
-    "MidiSwitchBinding": {
-      "type": "object",
-      "properties": {
-        "activate": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        },
-        "activated": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        },
-        "deactivate": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        },
-        "deactivated": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "maximum": 255,
-            "minimum": 0
-          }
-        }
-      }
-    },
-    "RestConsole": {
-      "type": "object",
-      "properties": {
-        "port": {
-          "type": "integer",
-          "format": "uint16",
-          "maximum": 65535,
-          "minimum": 0
-        }
-      },
-      "required": [
-        "port"
-      ]
-    },
-    "TermConsole": {
-      "type": "object"
-    },
-    "TermContinuousBinding": {
-      "type": "object",
-      "properties": {
-        "decrease": {
-          "type": "string"
-        },
-        "delta": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "increase": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "increase",
-        "decrease",
-        "delta"
-      ]
-    },
-    "TermMomentaryBinding": {
-      "type": "object",
-      "properties": {
-        "trigger": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "trigger"
-      ]
-    },
-    "TermSwitchBinding": {
-      "type": "object",
-      "properties": {
-        "activate": {
-          "type": "string"
-        },
-        "deactivate": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "activate",
-        "deactivate"
       ]
     }
   }

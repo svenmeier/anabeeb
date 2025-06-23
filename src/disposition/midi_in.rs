@@ -1,46 +1,49 @@
-use std::error::Error;
 use log::{info, warn};
-use crate::disposition::general::{activate, combination_trigger, press_key_dispatch, Disposition, Element, Id};
+use crate::disposition::general::{activate, change, combination_trigger, press_key_dispatch, Disposition, Element, Id};
 use crate::disposition::midi_out::{midi_activate, midi_change};
 use crate::midi::{get_wildcard};
 use crate::print_info;
 use crate::processor::{Event, Processor};
 
-pub fn midi_in_init(disposition: &mut Disposition, processor: &mut Processor) -> Result<(), Box<dyn Error>> {
+pub fn midi_in_init(disposition: &mut Disposition, processor: &mut Processor) {
     for (id, element) in &mut disposition.elements {
         match element {
             Element::MidiKeyboard(keyboard) => {
-                processor.midi_input(id, &keyboard.port)?;
+                if let Some(port) = &keyboard.port {
+                    processor.midi_input(id, port);
+                }
             },
             Element::MidiConsole(console) => {
-                processor.midi_input(id, &console.port)?;
+                if let Some(port) = &console.port {
+                    processor.midi_input(id, port);
+                }
             },
             _ => {},
         };
     }
-
-    Ok(())
 }
 
-pub fn midi_in_process(disposition: &mut Disposition, event: &Event) {
+pub fn midi_in_process(disposition: &mut Disposition, _: &Processor, event: &Event) {
     if let Event::MidiIn(id, message) = event {
         match disposition.elements.get_mut(&id) {
             Some(Element::MidiKeyboard(keyboard)) => {
-                let key_down = keyboard.midi_binding.key_down.clone();
-                let key_up = keyboard.midi_binding.key_up.clone();
-                let references = keyboard.references.clone();
+                if let Some(binding) = &keyboard.midi_binding {
+                    let key_down = binding.key_down.clone();
+                    let key_up = binding.key_up.clone();
+                    let references = keyboard.references.clone();
 
-                if let Some((_, key)) = get_wildcard(&message, &key_down) {
-                    if keyboard._pressed_keys.insert(key) {
-                        press_key_dispatch(disposition, references.clone(), key, true);
-                    } else {
-                        warn!("midi keyboard key {} already pressed", key)
-                    }
-                } else if let Some((_, key)) = get_wildcard(&message, &key_up) {
-                    if keyboard._pressed_keys.remove(&key) {
-                        press_key_dispatch(disposition, references.clone(), key, false);
-                    } else {
-                        warn!("midi keyboard key {} was not pressed", key)
+                    if let Some((_, key)) = get_wildcard(&message, &key_down) {
+                        if keyboard._pressed_keys.insert(key) {
+                            press_key_dispatch(disposition, references.clone(), key, true);
+                        } else {
+                            warn!("midi keyboard key {} already pressed", key)
+                        }
+                    } else if let Some((_, key)) = get_wildcard(&message, &key_up) {
+                        if keyboard._pressed_keys.remove(&key) {
+                            press_key_dispatch(disposition, references.clone(), key, false);
+                        } else {
+                            warn!("midi keyboard key {} was not pressed", key)
+                        }
                     }
                 }
             },
@@ -57,67 +60,59 @@ fn midi_match_bindings(disposition: &mut Disposition, ids: Vec<Id>, message: Vec
     for id in ids {
         match disposition.elements.get_mut(&id) {
             Some(Element::Coupler(coupler)) => {
-                match &mut coupler.midi_binding {
-                    Some(binding) => {
-                        if binding.activate == message {
-                            activate(disposition, id, true);
-                        } else if binding.deactivate == message {
-                            activate(disposition, id, false);
-                        }
-                    },
-                    _ => {},
+                if let Some(binding) = &mut coupler.midi_binding {
+                    if binding.activate == message {
+                        activate(disposition, id, true);
+                    } else if binding.deactivate == message {
+                        activate(disposition, id, false);
+                    }
                 }
             },
             Some(Element::Captor(captor)) => {
-                match &mut captor.midi_binding {
-                    Some(binding) => {
-                        if binding.activate == message {
-                            activate(disposition, id, true);
-                        } else if binding.deactivate == message {
-                            activate(disposition, id, false);
-                        }
-                    },
-                    _ => {},
+                if let Some(binding) = &mut captor.midi_binding {
+                    if binding.activate == message {
+                        activate(disposition, id, true);
+                    } else if binding.deactivate == message {
+                        activate(disposition, id, false);
+                    }
                 }
             },
             Some(Element::Combination(combination)) => {
-                match &mut combination.midi_binding {
-                    Some(binding) => {
-                        if binding.trigger == message {
-                            combination_trigger(disposition, id);
-                        }
-                    },
-                    _ => {},
+                if let Some(binding) = &mut combination.midi_binding {
+                    if binding.trigger == message {
+                        combination_trigger(disposition, id);
+                    }
                 }
             },
-            Some(Element::MidiAction(filter)) => {
-                match &mut filter.midi_binding {
-                    Some(binding) => {
-                        if binding.activate == message {
-                            midi_activate(disposition, id, true);
-                        } else if binding.deactivate == message {
-                            midi_activate(disposition, id, false);
-                        }
-                    },
-                    _ => {},
-                }
-            },
-            Some(Element::MidiRange(filter)) => {
-                match &mut filter.midi_binding {
-                    Some(binding) => {
-                        match get_wildcard(&message, &binding.change) {
-                            Some((_, value)) => {
-                                let range = filter.max.saturating_sub(filter.min);
-                                let value = filter.min.saturating_add((value as u32).saturating_mul(range) / 127);
+            Some(Element::Memory(memory)) => {
+                if let Some(binding) = &mut memory.midi_binding {
+                    if let Some((_, value)) = get_wildcard(&message, &binding.change) {
+                        let delta = memory.max.saturating_sub(memory.min);
+                        let value = memory.min.saturating_add((value as u32).saturating_mul(delta) / 127);
 
-                                midi_change(disposition, id, value);
-                            },
-                            _ => {},
-                        }
-                    },
-                    _ => {},
+                        change(disposition, id, value);
+                    }
                 }
             },
+            Some(Element::MidiAction(action)) => {
+                if let Some(binding) = &mut action.midi_binding {
+                    if binding.activate == message {
+                        midi_activate(disposition, id, true);
+                    } else if binding.deactivate == message {
+                        midi_activate(disposition, id, false);
+                    }
+                }
+            }
+            Some(Element::MidiRange(range)) => {
+                if let Some(binding) = &mut range.midi_binding {
+                    if let Some((_, value)) = get_wildcard(&message, &binding.change) {
+                        let delta = range.max.saturating_sub(range.min);
+                        let value = range.min.saturating_add((value as u32).saturating_mul(delta) / 127);
+
+                        midi_change(disposition, id, value);
+                    }
+                }
+            }
             None => {
                 warn!("invalid id {}", id);
             },

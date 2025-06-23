@@ -1,22 +1,23 @@
 use std::collections::{BTreeMap, HashMap};
-use std::error::Error;
 use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use schemars::JsonSchema;
 use crate::disposition::fluidsynth::FluidsynthSound;
 use crate::disposition::midi_out::{midi_activate, midi_element_modified, midi_register_press_key};
 use crate::disposition::rest::{rest_element_modified, RestConsole};
-use crate::disposition::term::{term_element_modified, TermMomentaryBinding, TermConsole, TermSwitchBinding};
-use crate::io::write_disposition;
-use crate::{print_error, print_info};
+use crate::disposition::term::{term_element_modified, TermMomentaryBinding, TermConsole, TermSwitchBinding, TermContinuousBinding};
+use crate::io::{combine_paths, read_memory};
 use crate::disposition::general::CombinationCapture::{Active, Value};
-use crate::disposition::midi::{MidiMomentaryBinding, MidiConsole, MidiRange, MidiKeyboard, MidiRegister, MidiSound, MidiSwitchBinding, MidiAction};
+use crate::disposition::midi::{MidiMomentaryBinding, MidiConsole, MidiRange, MidiKeyboard, MidiRegister, MidiSound, MidiSwitchBinding, MidiAction, MidiContinuousBinding};
 use crate::disposition::midi_out::{midi_change};
 use crate::processor::{Processor};
 
 #[derive(Serialize, Deserialize,JsonSchema)]
 pub struct Disposition {
+    #[serde(rename = "$schema", skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+
     pub elements: BTreeMap<Id, Element>,
 
     #[serde(skip)]
@@ -49,6 +50,7 @@ impl From<&str> for Id {
 pub enum Element {
     Coupler(Coupler),
     Captor(Captor),
+    Memory(Memory),
     Combination(Combination),
     RestConsole(RestConsole),
     TermConsole(TermConsole),
@@ -96,6 +98,66 @@ pub struct Captor {
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Memory {
+    #[serde(default)]
+    pub value: u32,
+
+    pub min: u32,
+
+    pub max: u32,
+
+    #[serde(default = "default_memory_state")]
+    pub state: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub term_binding: Option<TermContinuousBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_binding: Option<MidiContinuousBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    #[serde(skip)]
+    #[serde(default)]
+    pub _state: Option<MemoryState>,
+}
+
+fn default_memory_state() -> String { "memory.json".to_string() }
+
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
+pub struct MemoryState {
+    #[serde(rename = "$schema", skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    #[serde(default)]
+    pub levels: Vec<MemoryLevel>,
+}
+impl MemoryState {
+    pub fn new() -> Self {
+        Self {
+            title: None,
+            schema: None,
+            levels: Vec::new(),
+        }
+    }
+}
+
+pub type CombinationState = BTreeMap<Id, CombinationCapture>;
+
+#[derive(Serialize, Deserialize, Clone, JsonSchema)]
+pub struct MemoryLevel {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    #[serde(default)]
+    pub references: BTreeMap<Id, CombinationState>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Combination {
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -105,7 +167,10 @@ pub struct Combination {
     pub term_binding: Option<TermMomentaryBinding>,
 
     #[serde(default)]
-    pub references: HashMap<Id, CombinationCapture>,
+    pub references: Vec<Id>,
+    
+    #[serde(default)]
+    pub state: CombinationState,
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
@@ -115,24 +180,26 @@ pub enum CombinationCapture {
     Value(u32),
 }
 
-pub fn general_init(_: &mut Disposition, _: &Processor) -> Result<(), Box<dyn Error>> {
-    Ok(())
-}
+pub fn general_init(disposition: &mut Disposition, _: &Processor) {
+    let path = disposition._path.as_deref().unwrap_or(".");
 
-pub fn save(disposition: &Disposition) {
-    match write_disposition(disposition) {
-        Ok(()) => {
-            print_info!("saved disposition");
-        },
-        Err(e) =>  {
-            print_error!("failed to save disposition: {}", e);
-        },
+    for (id, element) in &mut disposition.elements {
+        match element {
+            Element::Memory(memory) => {
+                let combined_path = combine_paths(&path, &memory.state);
+                match read_memory(combined_path.clone()) {
+                    Err(e) => {
+                        error!("failed to load memory: {}", e);
+                    },
+                    Ok(state) => {
+                        memory._state = Some(state);
+                        info!("loaded memory state {} from '{}'", id, combined_path);
+                    },
+                }
+            },
+            _ => {},
+        };
     }
-}
-
-pub fn quit() {
-    print_info!("good bye");
-    std::process::exit(0);
 }
 
 pub fn press_key_dispatch(disposition: &mut Disposition, ids: Vec<Id>, key: u8, down: bool) {
@@ -149,6 +216,68 @@ pub fn press_key_dispatch(disposition: &mut Disposition, ids: Vec<Id>, key: u8, 
             },
             _ => {},
         };
+    }
+}
+
+pub fn change(disposition: &mut Disposition, id: Id, mut value: u32) {
+    let modified = match disposition.elements.get_mut(&id) {
+        Some(Element::Memory(memory)) => {
+            value = value.clamp(memory.min, memory.max);
+            if value != memory.value {
+                let old_value = memory.value;
+                memory.value = value;
+                capture_memory(disposition, id.clone(), old_value as usize, value as usize);
+                true
+            } else {
+                false
+            }
+        },
+        _ => false,
+    };
+
+    if modified {
+        midi_element_modified(disposition, id.clone());
+        rest_element_modified(disposition, id.clone());
+        term_element_modified(disposition, id.clone());
+    }
+}
+
+fn capture_memory(disposition: &mut Disposition, id: Id, previous_index: usize, new_index: usize) {
+
+    let mut previous_level = MemoryLevel{ title: None, references: BTreeMap::new() };
+    for id in disposition.elements.keys().cloned().collect::<Vec<Id>>() {
+        match disposition.elements.get(&id) {
+            Some(Element::Combination(combination)) => {
+                previous_level.references.insert(id.clone(), combination.state.clone());
+            }
+            _ => {},
+        }
+    }
+
+    if let Some(Element::Memory(memory)) = disposition.elements.get_mut(&id) {
+        let state = memory._state.get_or_insert_with(MemoryState::new);
+
+        if previous_index < state.levels.len() {
+            previous_level.title = state.levels.get(previous_index).unwrap().title.clone();
+        } else {
+            state.levels.resize(previous_index + 1, MemoryLevel{ title: None, references: BTreeMap::new() });
+        }
+        state.levels[previous_index] = previous_level;
+
+        if let Some(mut new_level) = state.levels.get(new_index).cloned() {
+            memory.title = new_level.title.clone();
+
+            for id in disposition.elements.keys().cloned().collect::<Vec<Id>>() {
+                match disposition.elements.get_mut(&id) {
+                    Some(Element::Combination(combination)) => {
+                        if let Some(state) = new_level.references.remove(&id) {
+                            combination.state = state;
+                        }
+                    }
+                    _ => {},
+                }
+            }
+        }
     }
 }
 
@@ -179,7 +308,7 @@ pub fn activate(disposition: &mut Disposition, id: Id, active: bool) {
         },
         _ => false,
     };
-    
+   
     if modified {
         midi_element_modified(disposition, id.clone());
         rest_element_modified(disposition, id.clone());
@@ -253,31 +382,24 @@ pub fn combination_trigger(disposition: &mut Disposition, id: Id) {
 fn recall(disposition: &mut Disposition, id: Id) {
     match disposition.elements.get_mut(&id) {
         Some(Element::Combination(combination)) => {
+            let state = combination.state.clone();
+            
             info!("combination recall {}", id);
-            for (id, capture) in combination.references.clone() {
+            for id in combination.references.clone() {
                 match disposition.elements.get(&id) {
                     Some(Element::Coupler(_)) => {
-                        match capture {
-                            Active(active) => {
-                                activate(disposition, id, active);
-                            },
-                            _ => {},
+                        if let Some(Active(active)) = state.get(&id) {
+                            activate(disposition, id, *active);
                         }
                     },
                     Some(Element::MidiAction(_)) => {
-                        match capture {
-                            Active(active) => {
-                                midi_activate(disposition, id, active);
-                            },
-                            _ => {},
+                        if let Some(Active(active)) = state.get(&id) {
+                            midi_activate(disposition, id, *active);
                         }
                     },
                     Some(Element::MidiRange(_)) => {
-                        match capture {
-                            Value(value) => {
-                                midi_change(disposition, id, value);
-                            },
-                            _ => {},
+                        if let Some(Value(value)) = state.get(&id) {
+                            midi_change(disposition, id, *value);
                         }
                     },
                     _ => {},
@@ -292,13 +414,13 @@ fn capture(disposition: &mut Disposition, id: Id) {
     info!("combination capture {}", id);
 
     let ids: Vec<Id> = if let Some(Element::Combination(combination)) = disposition.elements.get(&id) {
-        combination.references.keys().cloned().collect()
+        combination.references.clone()
     } else {
         warn!("invalid id {}", id);
         return;
     };
 
-    let references: HashMap<Id, CombinationCapture> = ids
+    let state: CombinationState = ids
         .into_iter()
         .filter_map(|id| {
             match disposition.elements.get_mut(&id) {
@@ -318,7 +440,7 @@ fn capture(disposition: &mut Disposition, id: Id) {
     
     match disposition.elements.get_mut(&id) {
         Some(Element::Combination(combination)) => {
-            combination.references = references;
+            combination.state = state;
         },
         _ => {},
     };

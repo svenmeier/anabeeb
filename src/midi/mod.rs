@@ -1,5 +1,5 @@
 use std::error::Error;
-use log::info;
+use log::{info, warn};
 use midir::{MidiInput, MidiOutput};
 
 pub mod channel_pool;
@@ -40,7 +40,13 @@ pub fn set_wildcard(message: &[u8], value: u8) -> Vec<u8> {
 }
 
 
-pub fn log_midi() -> Result<(), Box<dyn Error>> {
+pub fn log_midi_ports() {
+    if let Err(e) = try_log_midi_ports() {
+        warn!("failed to log midi ports: {}", e);
+    }
+}
+
+pub fn try_log_midi_ports() -> Result<(), Box<dyn Error>> {
     let midi_in = MidiInput::new("anabeeb")?;
     for port in midi_in.ports() {
         info!("Input Port '{}'", midi_in.port_name(&port)?);

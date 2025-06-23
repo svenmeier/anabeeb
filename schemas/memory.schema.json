@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MemoryState",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "levels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/MemoryLevel"
+      },
+      "default": []
+    }
+  },
+  "$defs": {
+    "MemoryLevel": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "references": {
+          "type": "object",
+          "patternProperties": {
+            "^\\S+$": {
+              "type": "object",
+              "patternProperties": {
+                "^\\S+$": {
+                  "$ref": "#/$defs/CombinationCapture"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        }
+      }
+    },
+    "CombinationCapture": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      ]
+    }
+  }
+}

@@ -42,7 +42,8 @@ pub struct MidiKeyboardBinding {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct MidiConsole {
-    pub port: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<String>,
 
     #[serde(default)]
     pub references: Vec<Id>,
@@ -53,9 +54,11 @@ pub struct MidiConsole {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct MidiKeyboard {
-    pub port: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<String>,
 
-    pub midi_binding : MidiKeyboardBinding,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_binding : Option<MidiKeyboardBinding>,
 
     #[serde(default)]
     pub references: Vec<Id>,
@@ -124,7 +127,8 @@ pub struct MidiRegister {
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct MidiSound {
-    pub port: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<String>,
 
     #[serde(skip)]
     pub _output: Option<Output>,

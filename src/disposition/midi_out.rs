@@ -1,5 +1,4 @@
 use log::{debug, error, warn};
-use std::error::Error;
 use crate::disposition::fluidsynth::fluidsynth_send_messages;
 use crate::disposition::general::{Disposition, Element, Id};
 use crate::disposition::midi::{MidiRange, MidiAction};
@@ -8,20 +7,22 @@ use crate::disposition::term::{term_element_modified};
 use crate::midi::{set_midi_channel, set_wildcard};
 use crate::processor::{Processor};
 
-pub fn midi_out_init(disposition: &mut Disposition, processor: &mut Processor) -> Result<(), Box<dyn Error>> {
+pub fn midi_out_init(disposition: &mut Disposition, processor: &mut Processor) {
     for (id, element) in &mut disposition.elements {
         match element {
             Element::MidiSound(sound) => {
-                sound._output = Some(processor.midi_output(id, &sound.port)?);
+                if let Some(port) = &sound.port {
+                    sound._output = processor.midi_output(id, port);
+                }
             },
             Element::MidiConsole(console) => {
-                console._output = Some(processor.midi_output(id, &console.port)?);
+                if let Some(port) = &console.port {
+                    console._output = processor.midi_output(id, port);
+                }
             },
             _ => {},
         };
     }
-
-    Ok(())
 }
 
 fn send_messages_dispatch(disposition: &mut Disposition, ids: Vec<Id>, channel: String, release: bool, messages: Vec<Vec<u8>>) {
@@ -52,15 +53,12 @@ fn send_messages(disposition: &mut Disposition, id: Id, channel: String, release
         Some(Element::MidiSound(sound)) => {
             let (channel_number, new) = sound._channels.acquire(channel.as_str());
             if channel_number < 16 {
-                match sound._output {
-                    Some(ref mut output) => {
-                        for message in messages.iter() {
-                            debug!("midi sound {} send '{}' {} '{:?}'", id, channel, channel_number, message);
-                            let channel_message = set_midi_channel(message, channel_number);
-                            output.send(&channel_message);
-                        }
-                    },
-                    _ => {},
+                if let Some(ref mut output) = sound._output {
+                    for message in messages.iter() {
+                        debug!("midi sound {} send '{}' {} '{:?}'", id, channel, channel_number, message);
+                        let channel_message = set_midi_channel(message, channel_number);
+                        output.send(&channel_message);
+                    }
                 }
             } else {
                 if new {

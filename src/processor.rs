@@ -5,27 +5,36 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crokey::crossterm::event::KeyEvent;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use log::info;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
 use regex::{escape, Regex};
-use crate::disposition::general::{general_init, Disposition, Id};
+use crate::disposition::general::{general_init, Disposition, Element, Id};
 use crate::disposition::fluidsynth::fluidsynth_init;
 use crate::disposition::midi_in::{midi_in_init, midi_in_process};
 use crate::disposition::midi_out::midi_out_init;
 use crate::disposition::rest::{rest_init, rest_process, Command};
 use crate::disposition::term::{term_init, term_process};
-use crate::midi::log_midi;
+use crate::midi::log_midi_ports;
+use crate::{print_error, print_info, Args};
+use crate::io::{combine_paths, write_disposition, write_disposition_override, write_memory};
 use crate::processor::Event::MidiIn;
 
 pub enum Event {
+    Error(Id, String),
     MidiIn(Id, Vec<u8>),
     TermKey(Id, KeyEvent),
     Rest(Id, Command, Sender<Option<String>>),
 }
 
+pub struct ProcessingError {
+    pub id: Id,
+    pub message: String,
+}
+
 pub struct Processor {
     pub events: Sender<Event>,
     receiver: Receiver<Event>,
+    errors: Vec<ProcessingError>,
+    args: Args,
 
     /// Note: sharing of midi input/output is required for WinMM, which allows a single
     /// connection to each port only (MMSYSERR_ALLOCATED).
@@ -33,42 +42,103 @@ pub struct Processor {
     outputs: HashMap<String, Rc<RefCell<SharedOutput>>>,
 }
 impl Processor {
-    pub fn new() -> Self {
+    pub fn new(args: Args) -> Self {
         let (events, receiver) = unbounded::<Event>();
         
         Self {
             events,
             receiver,
+            args,
+            errors: Vec::new(),
             inputs: HashMap::new(),
             outputs: HashMap::new(),
         }
     }
 
-    pub fn init(&mut self, disposition: &mut Disposition) -> Result<(), Box<dyn Error>> {
+    pub fn init(&mut self, disposition: &mut Disposition) {
         
-        log_midi()?;
+        log_midi_ports();
 
-        general_init(disposition, self)?;
-        rest_init(disposition, self)?;
-        term_init(disposition, self)?;
-        midi_in_init(disposition, self)?;
-        midi_out_init(disposition, self)?;
-        fluidsynth_init(disposition, self)?;
-        
-        Ok(())
+        general_init(disposition, self);
+        rest_init(disposition, self);
+        term_init(disposition, self);
+        midi_in_init(disposition, self);
+        midi_out_init(disposition, self);
+        fluidsynth_init(disposition, self);
     }
 
-    pub fn process(&self, disposition: &mut Disposition) -> Result<(), Box<dyn Error>> {
+    pub fn process(&mut self, disposition: &mut Disposition) {
         loop {
-            let event = self.receiver.recv()?;
-            
-            midi_in_process(disposition, &event);
-            term_process(disposition, &event);
-            rest_process(disposition, &event);
+            let event = self.receiver.recv().unwrap();
+
+            if let Event::Error(id, message) = event {
+                self.errors.push(ProcessingError { id, message });
+            } else {
+                midi_in_process(disposition, self, &event);
+                term_process(disposition, self, &event);
+                rest_process(disposition, self, &event);
+            }
         }
     }
 
-    pub fn midi_input(&mut self, id: &Id, name: &str) -> Result<(), Box<dyn Error>> {
+    pub fn save(&self, disposition: &Disposition) {
+
+        let path = disposition._path.clone().unwrap();
+        for (_, element) in &disposition.elements {
+            match element {
+                Element::Memory(memory) => {
+                    if let Some(state) = &memory._state {
+                        let combined_path = combine_paths(&path, &memory.state);
+                        match write_memory(combined_path.clone(), state) {
+                            Err(e) => print_error!("failed to save memory: {}", e),
+                            Ok(()) => print_info!("saved memory to '{}'", &combined_path),
+                        }
+                    }
+                },
+                _ => {},
+            };
+        }
+
+        if self.args.save_no_override {
+            match write_disposition(disposition) {
+                Err(e) =>  print_error!("failed to save disposition: {}", e),
+                Ok(()) => print_info!("saved disposition"),
+            }
+        } else {
+            match write_disposition_override(disposition) {
+                Err(e) =>  {
+                    print_error!("failed to save disposition override: {}", e);
+                },
+                Ok(()) => {
+                    print_info!("saved disposition override");
+                },
+            }
+        };
+    }
+
+    pub fn quit(&self, disposition: &Disposition) {
+        if self.args.save_on_exit {
+            self.save(disposition);
+        }
+        print_info!("good bye");
+        std::process::exit(0);
+    }
+
+
+    pub fn midi_input(&mut self, id: &Id, name: &str)  {
+        match self.try_midi_input(id, name) {
+            Ok(port_name) => {
+                print_info!("connected {} to port '{}'", id, port_name);
+            },
+            Err(e) => {
+                print_error!("connection {} failed: {}", id, e);
+                let message = format!("port '{}' not available", name);
+                self.errors.push(ProcessingError{ id: id.clone(), message });
+            },
+        }
+    }
+
+    pub fn try_midi_input(&mut self, id: &Id, name: &str) -> Result<String, Box<dyn Error>> {
         let midi_in = MidiInput::new("anabeeb").expect("no input");
 
         let regex = to_regex(&name)?;
@@ -101,16 +171,30 @@ impl Processor {
                         },
                     };
 
-                    info!("connected {} to input port '{}'", id, port_name);
-                    return Ok(());
+                    return Ok(port_name);
                 }
             }
         }
 
-        Err(format!("could not connect {} to input port '{}'", id, name).into())
+        Err(format!("no input port '{}'", name).into())
+    }
+
+    pub fn midi_output(&mut self, id: &Id, name: &str) -> Option<Output> {
+        match self.try_midi_output(name) {
+            Ok((port_name, shared_output)) => {
+                print_info!("connected {} to port '{}'", id, port_name);
+                Some(Output{ shared_output })
+            },
+            Err(e) => {
+                print_error!("connection {} failed: {}", id, e);
+                let message = format!("port '{}' not available", name);
+                self.errors.push(ProcessingError{ id: id.clone(), message });
+                None
+            },
+        }
     }
     
-    pub fn midi_output(&mut self, id: &Id, name: &str) -> Result<Output, Box<dyn Error>> {
+    fn try_midi_output(&mut self, name: &str) -> Result<(String, Rc<RefCell<SharedOutput>>), Box<dyn Error>> {
         let midi_out = MidiOutput::new("anabeeb")?;
         let regex = to_regex(name)?;
 
@@ -129,12 +213,11 @@ impl Processor {
                     Some(output) => output.clone(),
                 };
 
-                info!("connected {} to output port '{}'", id, port_name);
-                return Ok(Output {output});
+                return Ok((port_name, output));
             }
         }
 
-        Err(format!("could not connect {} to output port '{}'", id, name).into())
+        Err(format!("no output port '{}'", name).into())
     }
 }
 
@@ -148,11 +231,11 @@ fn to_regex(name: &str) -> Result<Regex, Box<dyn Error>> {
 }
 
 pub struct Output {
-    output: Rc<RefCell<SharedOutput>>,
+    shared_output: Rc<RefCell<SharedOutput>>,
 }
 impl Output {
     pub fn send(&mut self, message: &[u8]) -> () {
-        self.output.borrow_mut().connection.send(message).unwrap();
+        self.shared_output.borrow_mut().connection.send(message).unwrap();
     }
 }
 

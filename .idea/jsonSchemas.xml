@@ -6,13 +6,29 @@
         <entry key="disposition.schema">
           <value>
             <SchemaInfo>
-              <option name="generatedName" value="New Schema" />
+              <option name="generatedName" value="Disposition Schema" />
               <option name="name" value="disposition.schema" />
               <option name="relativePathToSchema" value="schemas/disposition.schema.json" />
               <option name="patterns">
                 <list>
                   <Item>
                     <option name="path" value="disposition.json" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
+        <entry key="memory.schema">
+          <value>
+            <SchemaInfo>
+              <option name="generatedName" value="Memory Schema" />
+              <option name="name" value="memory.schema" />
+              <option name="relativePathToSchema" value="schemas/memory.schema.json" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="disposition.memory.json" />
                   </Item>
                 </list>
               </option>

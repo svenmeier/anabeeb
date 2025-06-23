@@ -1,0 +1,104 @@
+{
+  "elements": {
+    "captor": {
+      "active": false,
+      "term_binding": {
+        "activate": "x",
+        "deactivate": "x"
+      }
+    },
+    "combination": {
+      "term_binding": {
+        "trigger": "c"
+      }
+    },
+    "console1": {
+      "port": "^.*Midi Through Port-0.*$"
+    },
+    "console2": {
+      "port": 4040
+    },
+    "coupler1": {
+      "active": false,
+      "midi_binding": {
+        "activate": [
+          176,
+          127,
+          1
+        ],
+        "deactivate": [
+          176,
+          127,
+          0
+        ],
+        "activated": [
+          177,
+          127,
+          1
+        ],
+        "deactivated": [
+          177,
+          127,
+          0
+        ]
+      },
+      "term_binding": {
+        "activate": "1",
+        "deactivate": "1"
+      }
+    },
+    "coupler2": {
+      "active": true,
+      "term_binding": {
+        "activate": "2",
+        "deactivate": "2"
+      }
+    },
+    "filter1": {
+      "value": 64,
+      "term_binding": {
+        "increase": "+",
+        "decrease": "Hyphen",
+        "delta": 5
+      },
+      "midi_binding": {
+        "change": [
+          176,
+          7,
+          255
+        ],
+        "changed": [
+          177,
+          7,
+          255
+        ]
+      }
+    },
+    "filter2": {
+      "active": false
+    },
+    "keyboard1": {
+      "port": "^Virtual Keyboard.*$",
+      "midi_binding": {
+        "key_down": [
+          144,
+          255,
+          255
+        ],
+        "key_up": [
+          128,
+          255,
+          255
+        ]
+      }
+    },
+    "memory": {
+      "value": 0,
+      "term_binding": {
+        "increase": ".",
+        "decrease": ",",
+        "delta": 1
+      }
+    }
+  }
+}

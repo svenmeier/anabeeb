@@ -24,7 +24,7 @@ impl ChannelPool {
         let used: HashSet<u8> = self.channels.values().cloned().collect();
         for channel in 0.. {
             if !used.contains(&channel) {
-                debug!("midi sound {} acquired channel {}", id, channel);
+                debug!("midi {} acquired channel {}", id, channel);
                 self.channels.insert(id.to_string(), channel);
                 return (channel, true);
             }
@@ -34,11 +34,8 @@ impl ChannelPool {
     }
 
     pub fn release(&mut self, id: &str) {
-        match self.channels.remove(id) {
-            Some(channel) => {
-                debug!("midi sound {} released channel {}", id, channel);
-            },
-            _ => {},
+        if let Some(channel) = self.channels.remove(id) {
+            debug!("midi {} released channel {}", id, channel);
         }
     }
 }

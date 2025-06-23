@@ -1,15 +1,14 @@
 use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use crossbeam_channel::{bounded, Sender};
-use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use log::{debug, error, info};
 use regex::{Captures, Regex};
-use rouille::{websocket, Request, Response};
+use rouille::{websocket, Request, Response, Server};
 use schemars::JsonSchema;
-use crate::disposition::general::{activate, combination_trigger, Disposition, Element, Id};
-use crate::disposition::general::Element::{Captor, Combination, Coupler, MidiRange, MidiAction};
+use crate::disposition::general::{activate, change, combination_trigger, Disposition, Element, Id};
+use crate::disposition::general::Element::{Captor, Combination, Coupler, MidiRange, MidiAction, Memory};
 use crate::disposition::midi_out::{midi_activate, midi_change};
 use crate::disposition::rest::Command::{Activate, Deactivate, NoOp, Trigger};
 use crate::processor::{Event, Processor};
@@ -18,7 +17,8 @@ use crate::rouille::Client;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct RestConsole {
-    pub port: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
 
     #[serde(skip)]
     _clients: Option<Clients>,
@@ -34,26 +34,26 @@ pub enum Command {
 
 type Clients = Arc<Mutex<Vec<Client>>>;
 
-pub fn rest_init(disposition: &mut Disposition, processor: &Processor) -> Result<(), Box<dyn Error>> {
-    for (_, element) in &mut disposition.elements {
+pub fn rest_init(disposition: &mut Disposition, processor: &Processor) {
+    for (id, element) in &mut disposition.elements {
         match element {
             Element::RestConsole(console) => {
-                let clients = Arc::new(Mutex::new(vec![]));
+                if let Some(port) = console.port {
+                    let clients = Arc::new(Mutex::new(vec![]));
 
-                Some(start_server(console.port, processor.events.clone(), clients.clone()));
+                    Some(start_server(id.clone(), port, processor.events.clone(), clients.clone()));
 
-                console._clients = Some(clients);
+                    console._clients = Some(clients);
+                }
             },
             _ => {},
         };
     }
-
-    Ok(())
 }
 
-fn start_server(port: u16, events: Sender<Event>, clients: Clients) {
+fn start_server(id: Id, port: u16, events: Sender<Event>, clients: Clients) {
     thread::spawn(move || {
-        rouille::start_server(format!("0.0.0.0:{}", port), move |request| {
+        let server = Server::new(format!("0.0.0.0:{}", port), move |request| {
             let mut response = Response::empty_404();
 
             if request.method() == "OPTIONS" {
@@ -64,12 +64,12 @@ fn start_server(port: u16, events: Sender<Event>, clients: Clients) {
                 if path == "/ws" {
                     response = handle_ws(request, clients.clone());
                 } else if request.method() == "POST" {
-                    let post_id_command_value = Regex::new(r"^/([^/]+)/([^/]+)(/([^/]+))?$").unwrap();
+                    let post_id_command_value = Regex::new(r"^/element/([^/]+)/([^/]+)(/([^/]+))?$").unwrap();
                     if let Some(caps) = post_id_command_value.captures(&path) {
                         response = handle_post(&events, caps);
                     }
                 } else if request.method() == "GET" {
-                    let get_id = Regex::new(r"^/([^/]+)$").unwrap();
+                    let get_id = Regex::new(r"^/element/([^/]+)$").unwrap();
                     if let Some(caps) = get_id.captures(&path) {
                         response = handle_get(&events, caps);
                     }
@@ -80,7 +80,17 @@ fn start_server(port: u16, events: Sender<Event>, clients: Clients) {
                 .with_additional_header("Access-Control-Allow-Origin", "*")
                 .with_additional_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
                 .with_additional_header("Access-Control-Allow-Headers", "Content-Type")
-        })
+        });
+        
+        match server {
+            Ok(server) => {
+                info!("console {} listening on {}", id, server.server_addr());
+                server.run();
+            },
+            Err(e) => {
+                error!("console {} failed to listen: {}", id, e);                
+            },
+        }
     });
 }
 
@@ -140,7 +150,7 @@ fn send_and_receive(events: &Sender<Event>, id: Id, command: Command) -> Respons
     }
 }
 
-pub fn rest_process(disposition: &mut Disposition, event: &Event) {
+pub fn rest_process(disposition: &mut Disposition, _: &Processor, event: &Event) {
     if let Event::Rest(id, command, sender) = event {
         rest_write(disposition, &id, command);
 
@@ -170,6 +180,11 @@ fn rest_write(disposition: &mut Disposition, id: &Id, command: &Command) {
         Some(Combination(_)) => {
             if let Trigger = command {
                 combination_trigger(disposition, id.clone())
+            }
+        },
+        Some(Memory(_)) => {
+            if let Command::Change(value) = command {
+                change(disposition, id.clone(), value.clone())
             }
         },
         Some(MidiAction(_)) => {

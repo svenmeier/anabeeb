@@ -12,6 +12,7 @@ use crate::processor::{Processor};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct FluidsynthSound {
+    #[serde(default = "default_soundfont")]
     pub soundfont: String,
 
     #[serde(default)]
@@ -30,6 +31,8 @@ pub struct FluidsynthSound {
     _synth: Option<(Synth, AudioDriver)>,
 }
 
+fn default_soundfont() -> String { "disposition.sf2".to_string()}
+
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct FluidsynthSettings {
     synth_overflow_age: f64,
@@ -46,12 +49,13 @@ pub struct FluidsynthSettings {
     synth_reverb_level: f64,
     synth_reverb_width: f64,
     synth_reverb_room_size: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     audio_driver: Option<String>,
     audio_periods: i32,
     audio_period_size: i32,
 }
 
-pub fn fluidsynth_init(disposition: &mut Disposition, _: &Processor) -> Result<(), Box<dyn Error>> {
+pub fn fluidsynth_init(disposition: &mut Disposition, _: &Processor) {
 
     synth_init_logging();
 
@@ -60,13 +64,19 @@ pub fn fluidsynth_init(disposition: &mut Disposition, _: &Processor) -> Result<(
     for (id, element) in &mut disposition.elements {
         match element {
             Element::FluidsynthSound(sound) => {
-                sound._synth = Some(create_synth(id, path, sound)?);
+                match create_synth(id, path, sound) {
+                    Err(e) => {
+                        error!("failed to create synth: {}", e)
+                    },
+                    Ok((synth, audiodriver)) => {
+                        sound._synth = Some((synth, audiodriver));
+                        info!("created synth")
+                    }
+                }
             },
             _ => {},
         }
     }
-
-    Ok(())
 }
 
 fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, AudioDriver), Box<dyn Error>> {
@@ -98,7 +108,7 @@ fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, 
     let combined_path = combine_paths(path, sound.soundfont.as_str());
     let soundfont_id = match synth.sfload(combined_path.as_str(), 0) {
         Some(soundfont_id) => {
-            info!("loaded soundfont for {} from '{}'", id, combined_path);
+            info!("loaded soundfont {} from '{}'", id, combined_path);
             soundfont_id
         },
         None => return Err(format!("Failed to load SoundFont '{}'", combined_path).as_str().into()),
@@ -116,25 +126,22 @@ fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, 
 pub fn fluidsynth_send_messages(disposition: &mut Disposition, id: Id, channel: String, release: bool, messages: Vec<Vec<u8>>) {
     match disposition.elements.get_mut(&id) {
         Some(Element::FluidsynthSound(sound)) => {
-            match sound._synth {
-                Some((ref mut synth, _)) => {
-                    let (channel_number, new) = sound._channels.acquire(channel.as_str());
-                    if channel_number < sound.settings.synth_midi_channels as u8 {
-                        for message in messages {
-                            debug!("fluidsynth sound {} send '{}' {} {:?}", id, channel, channel_number, message);
-                            send(synth, channel_number, message);
-                        }
-                    } else {
-                        if new {
-                            error!("no channel available in {} for '{}'", id, channel);
-                        }
+            if let Some((ref mut synth, _)) = sound._synth {
+                let (channel_number, new) = sound._channels.acquire(channel.as_str());
+                if channel_number < sound.settings.synth_midi_channels as u8 {
+                    for message in messages {
+                        debug!("fluidsynth sound {} send '{}' {} {:?}", id, channel, channel_number, message);
+                        send(synth, channel_number, message);
                     }
+                } else {
+                    if new {
+                        error!("no channel available in {} for '{}'", id, channel);
+                    }
+                }
 
-                    if release {
-                        sound._channels.release(channel.as_str());
-                    }
-                },
-                _ => {},
+                if release {
+                    sound._channels.release(channel.as_str());
+                }
             }
         },
         _ => {}

@@ -14,7 +14,7 @@ if "%EXE%"=="" (
 )
 set EXAMPLES="examples"
 set SCHEMAS="schemas"
-set DISPOSITION="disposition.json"
+set JSON="*.json"
 set DLLS="target\fluidsynth\bin\*.dll"
 set TEMP="target\anabeeb-windows"
 set ZIP="target\anabeeb-windows.zip"
@@ -22,7 +22,7 @@ set ZIP="target\anabeeb-windows.zip"
 if exist %TEMP% rmdir /s /q %TEMP%
 mkdir %TEMP%
 copy "%EXE%" "%TEMP%\" >nul
-copy "%DISPOSITION%" "%TEMP%\" >nul
+copy "%JSON%" "%TEMP%\" >nul
 xcopy /E /I /Y "%EXAMPLES%" "%TEMP%\%EXAMPLES%\" >nul
 xcopy /E /I /Y "%SCHEMAS%" "%TEMP%\%SCHEMAS%\" >nul
 xcopy /E /I /Y "%DLLS%" "%TEMP%\" >nul

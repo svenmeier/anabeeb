@@ -5,7 +5,7 @@ use clap::Parser;
 use env_logger::{Builder, Target};
 use log::{LevelFilter};
 use anabeeb::io::read_disposition;
-use anabeeb::{print_error, print_info};
+use anabeeb::{print_error, print_info, Args};
 use anabeeb::processor::{Processor};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     init_logging(args.log_to_console);
 
-    let mut disposition = match read_disposition(&args.file) {
+    let mut disposition = match read_disposition(&args.disposition) {
         Ok(disposition) => {
             print_info!("loaded disposition '{}'", disposition._path.clone().unwrap().as_str());
             disposition
@@ -26,19 +26,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     };
     
-    let mut processor = Processor::new();
+    let mut processor = Processor::new(args);
 
     print_info!("initializing disposition");
-    processor.init(&mut disposition).unwrap_or_else(|e| {
-        print_error!("failed to initialize disposition: {}", e);
-        exit(1);
-    });
+    processor.init(&mut disposition);
 
     print_info!("processing disposition");
-    processor.process(&mut disposition).unwrap_or_else(|e| {
-        print_error!("failed to process disposition: {}", e);
-        exit(1);
-    });
+    processor.process(&mut disposition);
 
     Ok(())
 }
@@ -47,11 +41,8 @@ fn init_logging(log_to_console: bool) {
     let mut builder = Builder::from_default_env();
     builder.target(Target::Stderr);
 
-    match std::env::var("RUST_LOG") {
-        Err(_) => {
-            builder.filter_level(LevelFilter::Info);
-        },
-        _ => {},
+    if let Err(_) = std::env::var("RUST_LOG") {
+        builder.filter_level(LevelFilter::Info);
     }
     if log_to_console {
         // needed for term raw mode
@@ -61,13 +52,4 @@ fn init_logging(log_to_console: bool) {
         builder.target(Target::Pipe(Box::new(log_file)));
     }
     builder.init();
-}
-
-#[derive(Parser, Debug)]
-struct Args {
-    #[arg(short, long, default_value = "false")]
-    log_to_console: bool,
-
-    #[arg(default_value = "disposition.json")]
-    file: String,
 }
