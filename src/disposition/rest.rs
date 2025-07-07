@@ -13,6 +13,7 @@ use crate::disposition::midi_out::{midi_activate, midi_change};
 use crate::disposition::rest::Command::{Activate, Deactivate, NoOp, Trigger};
 use crate::processor::{Event, Processor};
 use std::time::Duration;
+use crate::{print_error, print_info};
 use crate::rouille::Client;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -84,11 +85,11 @@ fn start_server(id: Id, port: u16, events: Sender<Event>, clients: Clients) {
         
         match server {
             Ok(server) => {
-                info!("console {} listening on {}", id, server.server_addr());
+                print_info!("console {} connected to port {}", id, server.server_addr());
                 server.run();
             },
             Err(e) => {
-                error!("console {} failed to listen: {}", id, e);                
+                print_error!("console {} failed to connect: {}", id, e);                
             },
         }
     });

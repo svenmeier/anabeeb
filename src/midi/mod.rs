@@ -47,15 +47,29 @@ pub fn log_midi_ports() {
 }
 
 pub fn try_log_midi_ports() -> Result<(), Box<dyn Error>> {
-    let midi_in = MidiInput::new("anabeeb")?;
-    for port in midi_in.ports() {
-        info!("Input Port '{}'", midi_in.port_name(&port)?);
+    for port in get_input_ports() {
+        info!("Input Port '{}'", port);
     }
 
-    let midi_out = MidiOutput::new("anabeeb")?;
-    for port in midi_out.ports() {
-        info!("Output Port '{}'", midi_out.port_name(&port)?);
+    for port in get_output_ports() {
+        info!("Output Port '{}'", port);
     }
 
     Ok(())
+}
+
+pub fn get_input_ports() -> Vec<String> {
+    let midi_in = MidiInput::new("anabeeb").unwrap();
+    
+    midi_in.ports().iter().map(| port | {
+        midi_in.port_name(&port).unwrap()
+    }).collect()
+}
+
+pub fn get_output_ports() -> Vec<String> {
+    let midi_out = MidiOutput::new("anabeeb").unwrap();
+
+    midi_out.ports().iter().map(| port | {
+        midi_out.port_name(&port).unwrap()
+    }).collect()
 }

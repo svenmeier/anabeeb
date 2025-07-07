@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
+use std::process::exit;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crokey::crossterm::event::KeyEvent;
@@ -17,6 +18,7 @@ use crate::midi::log_midi_ports;
 use crate::{print_error, print_info, Args};
 use crate::io::{combine_paths, write_disposition, write_disposition_override, write_memory};
 use crate::processor::Event::MidiIn;
+use crate::setup::setup;
 
 pub enum Event {
     Error(Id, String),
@@ -41,6 +43,7 @@ pub struct Processor {
     inputs: HashMap<String, SharedInput>,
     outputs: HashMap<String, Rc<RefCell<SharedOutput>>>,
 }
+
 impl Processor {
     pub fn new(args: Args) -> Self {
         let (events, receiver) = unbounded::<Event>();
@@ -54,10 +57,20 @@ impl Processor {
             outputs: HashMap::new(),
         }
     }
-
+    
     pub fn init(&mut self, disposition: &mut Disposition) {
         
         log_midi_ports();
+
+        if self.args.setup {
+            match setup(disposition, &self) {
+                Ok(()) => print_info!("setup completed"),
+                Err(e) => {
+                    print_error!("setup failed: {}", e);
+                    exit(1);
+                },
+            }
+        }
 
         general_init(disposition, self);
         rest_init(disposition, self);

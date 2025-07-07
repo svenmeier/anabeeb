@@ -9,11 +9,11 @@ use anabeeb::{print_error, print_info, Args};
 use anabeeb::processor::{Processor};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    print_info!("Welcome to Anabeeb");
-
     let args = Args::parse();
 
     init_logging(args.log_to_console);
+
+    print_info!("Welcome to Anabeeb");
 
     let mut disposition = match read_disposition(&args.disposition) {
         Ok(disposition) => {
@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             exit(1);
         },
     };
-    
+
     let mut processor = Processor::new(args);
 
     print_info!("initializing disposition");
