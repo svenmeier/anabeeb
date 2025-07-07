@@ -13,7 +13,7 @@
     <script src="anabeeb.js"></script>
 </head>
 <body>
-<h1>Anabeeb</h1>
+<h1 id="keyboard1">Anabeeb</h1>
 
 <div class="elements">
     <div class="column">
@@ -26,11 +26,11 @@
         </div>
 
         <div>
-            <label><input type="checkbox" id="filter2" class="stop" /><span>Filter 2</span></label>
+            <label><input type="checkbox" id="action" class="stop" /><span>Action</span></label>
         </div>
 
         <div>
-            <label><input type="range" id="filter1" class="slider" /><span>Filter 1</span></label>
+            <label><input type="range" id="range" class="slider" /><span>Range</span></label>
         </div>
     </div>
     <div class="column">
@@ -48,7 +48,7 @@
     </div>
 </div>
 
-<section id="errors" role="alert" aria-live="assertive" aria-atomic="true">
+<section class="errors" role="alert" aria-live="assertive" aria-atomic="true">
     <p>🚨 Could not connect to the organ server,
        <a href="" onclick="location.reload(); return false;">refresh</a> to try again.
     </p>

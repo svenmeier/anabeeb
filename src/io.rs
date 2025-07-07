@@ -7,24 +7,6 @@ use serde_json::Value;
 use serde_json::Value::Object;
 use crate::disposition::general::{Disposition, MemoryState};
 
-#[macro_export]
-macro_rules! print_info {
-    ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        log::info!("{}", msg);
-        print!("{}\r\n", msg);
-    }}
-}
-
-#[macro_export]
-macro_rules! print_error {
-    ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        log::error!("{}", msg);
-        print!("\x1b[91m{}\x1b[0m\r\n", msg);
-    }}
-}
-
 pub fn write_disposition(disposition: &Disposition) -> Result<(), Box<dyn Error>> {
     let path = disposition._path.clone().ok_or("no file specified")?;
 

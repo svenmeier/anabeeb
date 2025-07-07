@@ -8,8 +8,8 @@
         "combination": {
           "coupler1": true,
           "coupler2": true,
-          "filter1": 30,
-          "filter2": true
+          "range": 30,
+          "action": true
         }
       }
     },
@@ -19,8 +19,8 @@
         "combination": {
           "coupler1": false,
           "coupler2": false,
-          "filter1": 64,
-          "filter2": false
+          "range": 64,
+          "action": false
         }
       }
     }

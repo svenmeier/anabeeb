@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap};
 use serde::{Deserialize, Serialize};
 use crossbeam_channel::{bounded, Sender};
 use std::sync::{Arc, Mutex};
@@ -7,50 +7,91 @@ use log::{debug, error, info};
 use regex::{Captures, Regex};
 use rouille::{websocket, Request, Response, Server};
 use schemars::JsonSchema;
-use crate::disposition::general::{activate, change, combination_trigger, Disposition, Element, Id};
-use crate::disposition::general::Element::{Captor, Combination, Coupler, MidiRange, MidiAction, Memory};
-use crate::disposition::midi_out::{midi_activate, midi_change};
-use crate::disposition::rest::Command::{Activate, Deactivate, NoOp, Trigger};
-use crate::processor::{Event, Processor};
+use crate::disposition::general::{Disposition, Element, Id};
+use crate::processor::{Event};
 use std::time::Duration;
 use crate::{print_error, print_info};
 use crate::rouille::Client;
+
+#[derive(Serialize)]
+struct Data<'a> {
+    elements: BTreeMap<&'a Id, &'a Element>,
+}
+impl<'a> Data<'a> {
+    pub fn new() -> Self {
+        Self { 
+            elements: BTreeMap::new(),
+        }
+    }
+}
+
+pub struct RestHandler {
+    events: Sender<Event>,
+    clients: Clients,
+}
+impl RestHandler {
+    pub fn new(events: Sender<Event>) -> Self {
+        Self {
+            events,
+            clients: Arc::new(Mutex::new(vec![])),
+        }
+    }
+
+    pub fn init(&mut self, disposition: &mut Disposition) {
+        for (id, element) in &mut disposition.elements {
+            match element {
+                Element::RestConsole(console) => {
+                    if let Some(port) = console.port {
+                        Some(start_server(id.clone(), port, self.events.clone(), self.clients.clone()));
+                    }
+                },
+                _ => {},
+            };
+        }
+    }
+
+    pub fn process(&mut self, disposition: &mut Disposition, event: &Event) {
+        match event {
+            Event::RestRequest(id, event, result) => {
+                if let Some(event) = event.as_ref().as_ref() {
+                    self.events.send(event.clone()).unwrap();
+                }
+    
+                let data = to_data(disposition, &id);
+                result.send(data).unwrap();
+            }
+            Event::Modified(id) => {
+                let read = match to_data(disposition, &id) {
+                    Some(read) => read,
+                    None => return,
+                };
+
+                debug!("sending to websocket clients");
+                self.clients.lock().unwrap().retain_mut(|client| {
+                    match client.send_text(&read) {
+                        Ok(_) => {
+                            debug!("modification sent to websocket client '{}'", client.id);
+                            true
+                        },
+                        Err(e) => {
+                            info!("disconnected from websocket client '{}': {:?}", client.id, e);
+                            false
+                        },
+                    }
+                });
+            },
+            _ => {}
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct RestConsole {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
-
-    #[serde(skip)]
-    _clients: Option<Clients>,
-}
-
-pub enum Command {
-    Activate,
-    Deactivate,
-    Change(u32),
-    Trigger,
-    NoOp
 }
 
 type Clients = Arc<Mutex<Vec<Client>>>;
-
-pub fn rest_init(disposition: &mut Disposition, processor: &Processor) {
-    for (id, element) in &mut disposition.elements {
-        match element {
-            Element::RestConsole(console) => {
-                if let Some(port) = console.port {
-                    let clients = Arc::new(Mutex::new(vec![]));
-
-                    Some(start_server(id.clone(), port, processor.events.clone(), clients.clone()));
-
-                    console._clients = Some(clients);
-                }
-            },
-            _ => {},
-        };
-    }
-}
 
 fn start_server(id: Id, port: u16, events: Sender<Event>, clients: Clients) {
     thread::spawn(move || {
@@ -58,21 +99,26 @@ fn start_server(id: Id, port: u16, events: Sender<Event>, clients: Clients) {
             let mut response = Response::empty_404();
 
             if request.method() == "OPTIONS" {
-                response = handle_options();
+                response = options();
             } else {
                 let path = request.url();
 
                 if path == "/ws" {
-                    response = handle_ws(request, clients.clone());
+                    response = ws(request, clients.clone());
                 } else if request.method() == "POST" {
-                    let post_id_command_value = Regex::new(r"^/element/([^/]+)/([^/]+)(/([^/]+))?$").unwrap();
-                    if let Some(caps) = post_id_command_value.captures(&path) {
-                        response = handle_post(&events, caps);
+                    let element_id_event_value = Regex::new(r"^/element/([^/]+)/([^/]+)(/([^/]+))?$").unwrap();
+                    if let Some(caps) = element_id_event_value.captures(&path) {
+                        response = post_element(&events, caps);
+                    } else {
+                        let binding_id_command = Regex::new(r"^/binding/([^/]+)/([^/]+)$").unwrap();
+                        if let Some(caps) = binding_id_command.captures(&path) {
+                            response = post_binding(&events, caps);
+                        }
                     }
                 } else if request.method() == "GET" {
-                    let get_id = Regex::new(r"^/element/([^/]+)$").unwrap();
-                    if let Some(caps) = get_id.captures(&path) {
-                        response = handle_get(&events, caps);
+                    let element_id = Regex::new(r"^/element/([^/]+)$").unwrap();
+                    if let Some(caps) = element_id.captures(&path) {
+                        response = get_element(&events, caps);
                     }
                 }
             }
@@ -85,21 +131,21 @@ fn start_server(id: Id, port: u16, events: Sender<Event>, clients: Clients) {
         
         match server {
             Ok(server) => {
-                print_info!("console {} connected to port {}", id, server.server_addr());
+                print_info!("console ${} connected to port {}", id, server.server_addr());
                 server.run();
             },
             Err(e) => {
-                print_error!("console {} failed to connect: {}", id, e);                
+                print_error!("console ${} failed to connect: {}", id, e);
             },
         }
     });
 }
 
-fn handle_options() -> Response {
+fn options() -> Response {
     Response::text("").with_status_code(200)
 }
 
-fn handle_ws(request: &Request, clients: Clients) -> Response {
+fn ws(request: &Request, clients: Clients) -> Response {
     let (response, websocket_receiver) = match websocket::start(request, Some("anabeeb")) {
         Ok(pair) => pair,
         Err(e) => {
@@ -115,35 +161,55 @@ fn handle_ws(request: &Request, clients: Clients) -> Response {
     response
 }
 
-fn handle_get(events: &Sender<Event>, caps: Captures) -> Response{
+fn post_binding(events: &Sender<Event>, caps: Captures) -> Response {
     let id: Id = caps[1].into();
 
-    send_and_receive(&events, id, NoOp)
-}
-
-fn handle_post(events: &Sender<Event>, caps: Captures) -> Response {
-    let id: Id = caps[1].into();
-
-    let command = match &caps[2] {
-        "activate" => Activate,
-        "deactivate" => Deactivate,
-        "trigger" => Trigger,
-        "change" => caps.get(4)
-            .and_then(|m| m.as_str().parse::<u32>().ok())
-            .map(Command::Change)
-            .unwrap_or(NoOp),
-        _ => NoOp,
+    match &caps[2] {
+        "start" => {
+            events.send(Event::BindingStart(id.clone())).unwrap();
+        },
+        "end" => {
+            events.send(Event::BindingEnd).unwrap();
+        }
+        _ => {
+            return Response::empty_400();
+        },
     };
-    send_and_receive(&events, id, command)
+    Response::text("").with_status_code(200)
 }
 
-fn send_and_receive(events: &Sender<Event>, id: Id, command: Command) -> Response {
+fn get_element(events: &Sender<Event>, caps: Captures) -> Response{
+    let id: Id = caps[1].into();
+
+    send_and_receive(&events, id, None)
+}
+
+fn post_element(events: &Sender<Event>, caps: Captures) -> Response {
+    let id: Id = caps[1].into();
+
+    let event = match &caps[2] {
+        "activate" => Event::Activate(id.clone(), true),
+        "deactivate" => Event::Activate(id.clone(), false),
+        "trigger" => Event::Trigger(id.clone()),
+        "change" => {
+            let value = match caps.get(4).and_then(|m| m.as_str().parse::<u32>().ok()) {
+                Some(v) => v,
+                None => return Response::empty_400(),
+            };
+            Event::Change(id.clone(), value)
+        },
+        _ => {
+            return Response::empty_400();
+        },
+    };
+    send_and_receive(&events, id, Some(event))
+}
+
+fn send_and_receive(events: &Sender<Event>, id: Id, event: Option<Event>) -> Response {
     let (sender, receiver) = bounded(1);
 
-    // send the event
-    events.send(Event::Rest(id, command, sender)).unwrap();
+    events.send(Event::RestRequest(id, Box::new(event), sender)).unwrap();
 
-    // ... and wait until receiving a response
     match receiver.recv_timeout(Duration::from_secs(5)) {
         Ok(Some(result)) => Response::text(result),
         Ok(None) => Response::text("Not found").with_status_code(404),
@@ -151,94 +217,13 @@ fn send_and_receive(events: &Sender<Event>, id: Id, command: Command) -> Respons
     }
 }
 
-pub fn rest_process(disposition: &mut Disposition, _: &Processor, event: &Event) {
-    if let Event::Rest(id, command, sender) = event {
-        rest_write(disposition, &id, command);
-
-        let read = rest_read(disposition, &id);
-        sender.send(read).unwrap();
-    }
-}
-
-fn rest_write(disposition: &mut Disposition, id: &Id, command: &Command) {
-    match disposition.elements.get_mut(id) {
-        Some(Coupler(_)) => {
-            if let Activate = command {
-                activate(disposition, id.clone(), true)
-            }
-            if let Deactivate = command {
-                activate(disposition, id.clone(), false)
-            }
-        },
-        Some(Captor(_)) => {
-            if let Activate = command {
-                activate(disposition, id.clone(), true)
-            }
-            if let Deactivate = command {
-                activate(disposition, id.clone(), false)
-            }
-        },
-        Some(Combination(_)) => {
-            if let Trigger = command {
-                combination_trigger(disposition, id.clone())
-            }
-        },
-        Some(Memory(_)) => {
-            if let Command::Change(value) = command {
-                change(disposition, id.clone(), value.clone())
-            }
-        },
-        Some(MidiAction(_)) => {
-            if let Activate = command {
-                midi_activate(disposition, id.clone(), true)
-            }
-            if let Deactivate = command {
-                midi_activate(disposition, id.clone(), false)
-            }
-        },
-        Some(MidiRange(_)) => {
-            if let Command::Change(value) = command {
-                midi_change(disposition, id.clone(), value.clone())
-            }
-        },
-        _ => {},
-    }
-}
-
-
-pub fn rest_element_modified(disposition: &Disposition, id: Id) {
-    let read = match rest_read(disposition, &id) {
-        Some(read) => read,
-        None => return,
-    };
-
-    for (_, element) in &disposition.elements {
-        if let Element::RestConsole(console) = element {
-            if let Some(clients) = &console._clients {
-                debug!("sending to websocket clients");
-                clients.lock().unwrap().retain_mut(|client| {
-                    match client.send_text(&read) {
-                        Ok(_) => {
-                            debug!("modification sent to websocket client '{}'", client.id);
-                            true
-                        },
-                        Err(e) => {
-                            info!("disconnected from websocket client '{}': {:?}", client.id, e);
-                            false
-                        },
-                    }
-                });
-            }
-        }
-    }
-}
-
-fn rest_read(disposition: &Disposition, id: &Id) -> Option<String> {
+fn to_data(disposition: &Disposition, id: &Id) -> Option<String> {
     match disposition.elements.get(id) {
         Some(element) => {
-            let mut map = BTreeMap::new();
-            map.insert(id, element);
-            Some(serde_json::to_string_pretty(&map).unwrap())
+            let mut data = Data::new();
+            data.elements.insert(id, element);
+
+            Some(serde_json::to_string_pretty(&data).unwrap())
         },
         _ => None,
     }

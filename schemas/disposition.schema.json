@@ -134,10 +134,10 @@
           "properties": {
             "type": {
               "type": "string",
-              "const": "MidiRegister"
+              "const": "MidiRank"
             }
           },
-          "$ref": "#/$defs/MidiRegister",
+          "$ref": "#/$defs/MidiRank",
           "required": [
             "type"
           ]
@@ -218,26 +218,6 @@
             "maximum": 255
           },
           "default": []
-        },
-        "activated": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0,
-            "maximum": 255
-          },
-          "default": []
-        },
-        "deactivated": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0,
-            "maximum": 255
-          },
-          "default": []
         }
       }
     },
@@ -274,7 +254,17 @@
           "maximum": 127,
           "default": 0
         },
-        "midi_binding": {
+        "midi_in_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -310,7 +300,17 @@
           "type": "boolean",
           "default": false
         },
-        "midi_binding": {
+        "midi_in_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -365,16 +365,6 @@
             "maximum": 255
           },
           "default": []
-        },
-        "changed": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0,
-            "maximum": 255
-          },
-          "default": []
         }
       }
     },
@@ -411,7 +401,17 @@
             }
           ]
         },
-        "midi_binding": {
+        "midi_in_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiContinuousBinding"
@@ -474,7 +474,17 @@
     "Combination": {
       "type": "object",
       "properties": {
-        "midi_binding": {
+        "midi_in_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiMomentaryBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiMomentaryBinding"
@@ -582,7 +592,7 @@
             "null"
           ]
         },
-        "midi_binding": {
+        "midi_in_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiKeyboardBinding"
@@ -601,7 +611,7 @@
         }
       }
     },
-    "MidiRegister": {
+    "MidiRank": {
       "type": "object",
       "properties": {
         "references": {
@@ -682,7 +692,17 @@
             }
           ]
         },
-        "midi_binding": {
+        "midi_in_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiContinuousBinding"
@@ -747,7 +767,17 @@
             }
           ]
         },
-        "midi_binding": {
+        "midi_in_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -840,12 +870,6 @@
           "type": "number",
           "format": "double"
         },
-        "audio_driver": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "audio_periods": {
           "type": "integer",
           "format": "int32"
@@ -853,6 +877,18 @@
         "audio_period_size": {
           "type": "integer",
           "format": "int32"
+        },
+        "audio_driver": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "audio_device": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

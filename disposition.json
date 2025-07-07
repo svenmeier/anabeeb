@@ -9,8 +9,8 @@
       "references": [
         "coupler1",
         "coupler2",
-        "filter1",
-        "filter2"
+        "range",
+        "action"
       ]
     },
     "console1": {
@@ -18,8 +18,8 @@
       "references": [
         "coupler1",
         "coupler2",
-        "filter1",
-        "filter2",
+        "range",
+        "action",
         "combination",
         "captor"
       ]
@@ -34,17 +34,17 @@
       "type": "Coupler",
       "transpose": 0,
       "references": [
-        "register1"
+        "rank1"
       ]
     },
     "coupler2": {
       "type": "Coupler",
       "transpose": 0,
       "references": [
-        "register2"
+        "rank2"
       ]
     },
-    "filter1": {
+    "range": {
       "type": "MidiRange",
       "min": 16,
       "max": 127,
@@ -56,10 +56,10 @@
         ]
       ],
       "references": [
-        "filter2"
+        "action"
       ]
     },
-    "filter2": {
+    "action": {
       "type": "MidiAction",
       "engage": [
         [
@@ -92,10 +92,10 @@
       "max": 64,
       "state": "memory.json"
     },
-    "register1": {
-      "type": "MidiRegister",
+    "rank1": {
+      "type": "MidiRank",
       "references": [
-        "filter1"
+        "range"
       ],
       "acquire": [
         [
@@ -112,10 +112,10 @@
         ]
       ]
     },
-    "register2": {
-      "type": "MidiRegister",
+    "rank2": {
+      "type": "MidiRank",
       "references": [
-        "filter1"
+        "range"
       ],
       "acquire": [
         [

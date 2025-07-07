@@ -1,8 +1,7 @@
-use std::io::stdin;
 use crate::disposition::general::Disposition;
 use crate::disposition::general::Element::{MidiConsole, MidiKeyboard, MidiSound, RestConsole};
 use crate::midi::{get_input_ports, get_output_ports};
-use crate::{print_info};
+use crate::{print_info, read_line};
 use crate::processor::Processor;
 
 pub fn setup(disposition: &mut Disposition, processor: &Processor) -> Result<(), Box<dyn std::error::Error>> {
@@ -11,22 +10,28 @@ pub fn setup(disposition: &mut Disposition, processor: &Processor) -> Result<(),
     for (id, element) in &mut disposition.elements {
         match element {
             MidiConsole(console) => {
-                print_info!("Midi Console {} - input port", id);
+                print_info!("Midi Console ${} - input port", id);
 
-                console.port = choose(console.port.clone(), get_input_ports())?;
+                if let Ok(ports) = get_input_ports() {
+                    console.port = choose(console.port.clone(), ports)?;
+                }
             },
             MidiKeyboard(keyboard) => {
-                print_info!("Midi Keyboard {} - input port", id);
+                print_info!("Midi Keyboard ${} - input port", id);
 
-                keyboard.port = choose(keyboard.port.clone(), get_input_ports())?;
+                if let Ok(ports) = get_input_ports() {
+                    keyboard.port = choose(keyboard.port.clone(), ports)?;
+                }
             },
             MidiSound(sound) => {
-                print_info!("Midi Sound {} - output port", id);
+                print_info!("Midi Sound ${} - output port", id);
 
-                sound.port = choose(sound.port.clone(), get_output_ports())?;
+                if let Ok(ports) = get_output_ports() {
+                    sound.port = choose(sound.port.clone(), ports)?;
+                }
             },
             RestConsole(console) => {
-                print_info!("Rest Console {} - port", id);
+                print_info!("Rest Console ${} - port", id);
 
                 console.port = number(console.port.clone())?;
             },
@@ -35,9 +40,8 @@ pub fn setup(disposition: &mut Disposition, processor: &Processor) -> Result<(),
     }
 
     print_info!("do you want to save the setup? (Y/n)");
-    let mut input = String::new();
-    stdin().read_line(&mut input)?;
-    if "n" != input.trim().to_lowercase().as_str() {
+    read_line!(input);
+    if "n" != input.to_lowercase().as_str() {
         processor.save(disposition);
     }
     
@@ -46,13 +50,11 @@ pub fn setup(disposition: &mut Disposition, processor: &Processor) -> Result<(),
 
 fn number(current: Option<u16>) -> Result<Option<u16>, Box<dyn std::error::Error>> {
     print_info!("enter a number or leave empty to keep {}", format(&current));
-    
-    let mut input = String::new();
-    stdin().read_line(&mut input)?;
-    if input.trim().len() == 0 {
+    read_line!(input);
+    if input.len() == 0 {
         return Ok(current);
     }
-    Ok(Some(input.trim().parse::<u16>()?))
+    Ok(Some(input.parse::<u16>()?))
 }
 
 fn choose(current: Option<String>, options: Vec<String>) -> Result<Option<String>, Box<dyn std::error::Error>> {
@@ -62,12 +64,11 @@ fn choose(current: Option<String>, options: Vec<String>) -> Result<Option<String
     }
     print_info!("choose a number or leave empty to keep {}", format(&current));
 
-    let mut input = String::new();
-    stdin().read_line(&mut input)?;
-    if input.trim().len() == 0 {
+    read_line!(input);
+    if input.len() == 0 {
         return Ok(current);
     }
-    let index = input.trim().parse::<usize>()?;
+    let index = input.parse::<usize>()?;
     if index == 0 {
         return Ok(None);
     }

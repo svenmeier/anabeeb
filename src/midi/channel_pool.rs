@@ -16,16 +16,16 @@ impl ChannelPool {
         }
     }
 
-    pub fn acquire(&mut self, id: &str) -> (u8, bool) {
-        if let Some(&channel) = self.channels.get(id) {
+    pub fn acquire(&mut self, key: &str) -> (u8, bool) {
+        if let Some(&channel) = self.channels.get(key) {
             return (channel, false);
         }
 
         let used: HashSet<u8> = self.channels.values().cloned().collect();
         for channel in 0.. {
             if !used.contains(&channel) {
-                debug!("midi {} acquired channel {}", id, channel);
-                self.channels.insert(id.to_string(), channel);
+                debug!("acquired ${} channel #{}", key, channel);
+                self.channels.insert(key.to_string(), channel);
                 return (channel, true);
             }
         }
@@ -33,9 +33,9 @@ impl ChannelPool {
         (0, true)
     }
 
-    pub fn release(&mut self, id: &str) {
-        if let Some(channel) = self.channels.remove(id) {
-            debug!("midi {} released channel {}", id, channel);
+    pub fn release(&mut self, key: &str) {
+        if let Some(channel) = self.channels.remove(key) {
+            debug!("released ${} channel #{}", key, channel);
         }
     }
 }

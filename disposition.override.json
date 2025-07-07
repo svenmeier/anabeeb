@@ -10,6 +10,12 @@
     "combination": {
       "term_binding": {
         "trigger": "c"
+      },
+      "state": {
+        "coupler1": true,
+        "coupler2": true,
+        "range": 64,
+        "action": true
       }
     },
     "console1": {
@@ -19,8 +25,8 @@
       "port": 4040
     },
     "coupler1": {
-      "active": false,
-      "midi_binding": {
+      "active": true,
+      "midi_in_binding": {
         "activate": [
           176,
           127,
@@ -30,13 +36,15 @@
           176,
           127,
           0
-        ],
-        "activated": [
+        ]
+      },
+      "midi_out_binding": {
+        "activate": [
           177,
           127,
           1
         ],
-        "deactivated": [
+        "deactivate": [
           177,
           127,
           0
@@ -54,32 +62,38 @@
         "deactivate": "2"
       }
     },
-    "filter1": {
+    "range": {
       "value": 64,
       "term_binding": {
         "increase": "+",
         "decrease": "Hyphen",
         "delta": 5
       },
-      "midi_binding": {
+      "midi_in_binding": {
         "change": [
           176,
           7,
           255
-        ],
-        "changed": [
+        ]
+      },
+      "midi_out_binding": {
+        "change": [
           177,
           7,
           255
         ]
       }
     },
-    "filter2": {
-      "active": false
+    "action": {
+      "active": false,
+      "term_binding": {
+        "activate": "3",
+        "deactivate": "3"
+      }
     },
     "keyboard1": {
       "port": "^Virtual Keyboard.*$",
-      "midi_binding": {
+      "midi_in_binding": {
         "key_down": [
           144,
           255,

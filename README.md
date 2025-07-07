@@ -49,3 +49,5 @@ how to build on linux
 - build deb package
   > cargo build --release  
     cargo deb
+- install deb
+  > sudo apt -f install ./target/debian/*.deb

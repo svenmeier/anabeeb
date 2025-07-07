@@ -1,5 +1,4 @@
 use std::error::Error;
-use log::{info, warn};
 use midir::{MidiInput, MidiOutput};
 
 pub mod channel_pool;
@@ -39,37 +38,24 @@ pub fn set_wildcard(message: &[u8], value: u8) -> Vec<u8> {
         .collect()
 }
 
+pub fn get_input_ports() -> Result<Vec<String>, Box<dyn Error>> {
+    let midi = MidiInput::new("anabeeb").unwrap();
 
-pub fn log_midi_ports() {
-    if let Err(e) = try_log_midi_ports() {
-        warn!("failed to log midi ports: {}", e);
-    }
+    midi
+        .ports()
+        .iter()
+        .map(|port| midi.port_name(port))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(Into::into)
 }
 
-pub fn try_log_midi_ports() -> Result<(), Box<dyn Error>> {
-    for port in get_input_ports() {
-        info!("Input Port '{}'", port);
-    }
+pub fn get_output_ports() -> Result<Vec<String>, Box<dyn Error>> {
+    let midi = MidiOutput::new("anabeeb").unwrap();
 
-    for port in get_output_ports() {
-        info!("Output Port '{}'", port);
-    }
-
-    Ok(())
-}
-
-pub fn get_input_ports() -> Vec<String> {
-    let midi_in = MidiInput::new("anabeeb").unwrap();
-    
-    midi_in.ports().iter().map(| port | {
-        midi_in.port_name(&port).unwrap()
-    }).collect()
-}
-
-pub fn get_output_ports() -> Vec<String> {
-    let midi_out = MidiOutput::new("anabeeb").unwrap();
-
-    midi_out.ports().iter().map(| port | {
-        midi_out.port_name(&port).unwrap()
-    }).collect()
+    midi
+        .ports()
+        .iter()
+        .map(|port| midi.port_name(port))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(Into::into)
 }

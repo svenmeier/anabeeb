@@ -101,6 +101,7 @@ input.stop:checked + span {
 
 /* === Counter styling === */
 input.counter {
+    outline: none;
     background: #d9dbd4;
     color: #7d7a7a;
     font-family: 'Courier New', monospace;
@@ -112,7 +113,7 @@ input.counter {
     border-radius: 6px;
     font-weight: bold;
     text-align: right;
-    box-shadow: inset 0px 5px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: inset 0 5px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* === Swell slider styling === */
@@ -144,8 +145,14 @@ input.slider::-moz-range-thumb {
     cursor: pointer;
 }
 
+/* === binding === */
+.binding {
+    outline: 8px solid rgba(0, 123, 255, 0.6) !important;
+    outline-offset: -4px !important;
+}
+
 /* === error === */
-#errors {
+.errors {
     display: none;
     z-index: 9999;
     color: #fff4f4;
