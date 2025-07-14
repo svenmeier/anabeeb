@@ -6,10 +6,10 @@
       "title": "First level",
       "references": {
         "combination": {
+          "action": true,
           "coupler1": true,
           "coupler2": true,
-          "range": 30,
-          "action": true
+          "range": 30
         }
       }
     },
@@ -17,10 +17,10 @@
       "title": "Second level",
       "references": {
         "combination": {
+          "action": false,
           "coupler1": false,
           "coupler2": false,
-          "range": 64,
-          "action": false
+          "range": 64
         }
       }
     }

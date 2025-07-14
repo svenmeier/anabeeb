@@ -71,6 +71,9 @@ impl MidiOutHandler {
                     Some(Element::Memory(memory)) => {
                         self.send_continuous_binding(id, disposition, memory.value, memory.min, memory.max, &memory.midi_out_binding.clone());
                     },
+                    Some(Element::Roller(roller)) => {
+                        self.send_continuous_binding(id, disposition, roller.value, roller.min, roller.max, &roller.midi_out_binding.clone());
+                    }
                     _ => {},
                 }
             },
@@ -323,7 +326,7 @@ fn midi_console_send(disposition: &mut Disposition, reference: Id, message: Vec<
             Element::MidiConsole(console) => {
                 if console.references.contains(&reference) {
                     if let Some(ref mut output) = console._output {
-                        debug!("midi console ${} send {} '{:?}'", id, reference, message);
+                        debug!("midi console ${} send ${} '{:?}'", id, reference, message);
                         output.borrow_mut().connection.send(message.as_slice()).unwrap();
                     }
                 }

@@ -70,8 +70,9 @@ impl Binding {
 pub enum Element {
     Coupler(Coupler),
     Captor(Captor),
-    Memory(Memory),
     Combination(Combination),
+    Roller(Roller),
+    Memory(Memory),
     RestConsole(RestConsole),
     TermConsole(TermConsole),
     MidiConsole(MidiConsole),
@@ -150,6 +151,33 @@ pub struct Memory {
     #[serde(skip)]
     #[serde(default)]
     pub _state: Option<MemoryState>,
+}
+
+/**
+ * A roller progresses through the referenced elements based on its current value,
+ * activating the current element while deactivating the previous element,
+ * or recalling the current element in case of a referenced combination.
+ */
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Roller {
+    #[serde(default)]
+    pub value: u32,
+
+    pub min: u32,
+
+    pub max: u32,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub term_binding: Option<TermContinuousBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_in_binding: Option<MidiContinuousBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_out_binding: Option<MidiContinuousBinding>,
+
+    #[serde(default)]
+    pub references: Vec<Id>,
 }
 
 fn default_memory_state() -> String { "memory.json".to_string() }
@@ -278,12 +306,25 @@ impl GeneralHandler {
                     memory.value = value;
                     print_info!("memory ${} changed {}", id, memory.value);
 
-                    self.capture(disposition, id.clone(), old_value as usize, value as usize);
+                    self.memory_level(disposition, id.clone(), old_value as usize, value as usize);
                     true
                 } else {
                     false
                 }
             },
+            Some(Element::Roller(roller)) => {
+                value = value.clamp(roller.min, roller.max);
+                if value != roller.value {
+                    let old_value = roller.value;
+                    roller.value = value;
+                    print_info!("roller ${} changed {}", id, roller.value);
+
+                    self.roller_roll(disposition, id.clone(), old_value as usize, value as usize);
+                    true
+                } else {
+                    false
+                }
+            }
             _ => false,
         };
 
@@ -339,14 +380,14 @@ impl GeneralHandler {
         });
         if let Some(captor_id) = captor_id {
             self.events.send(Event::Activate(captor_id.clone(), false)).unwrap();
-            read_state(disposition, id.clone());
+            self.combination_capture(disposition, id.clone());
             return;
         }
 
-        self.recall(disposition, id.clone());
+        self.combination_recall(disposition, id.clone());
     }
 
-    fn recall(&self, disposition: &mut Disposition, id: Id) {
+    fn combination_recall(&self, disposition: &mut Disposition, id: Id) {
         match disposition.elements.get_mut(&id) {
             Some(Element::Combination(combination)) => {
                 let state = combination.state.clone();
@@ -359,7 +400,7 @@ impl GeneralHandler {
                                 self.events.send(Event::Activate(id.clone(), active.clone())).unwrap();
                             }
                         },
-                        Some(Element::MidiRange(_)) => {
+                        Some(Element::Roller(_) | Element::MidiRange(_)) => {
                             if let Some(Value(value)) = state.get(&id) {
                                 self.events.send(Event::Change(id.clone(), value.clone())).unwrap();
                             }
@@ -372,7 +413,73 @@ impl GeneralHandler {
         };
     }
 
-    fn capture(&self, disposition: &mut Disposition, id: Id, previous_index: usize, new_index: usize) {
+    fn combination_capture(&self, disposition: &mut Disposition, id: Id) {
+        let ids = if let Some(Element::Combination(combination)) = disposition.elements.get(&id) {
+            info!("combination capture ${}", id);
+            combination.references.clone()
+        } else {
+            warn!("invalid id ${}", id);
+            return;
+        };
+
+        let state: CombinationState = ids
+            .into_iter()
+            .filter_map(|id| {
+                match disposition.elements.get_mut(&id) {
+                    Some(Element::Coupler(coupler)) => {
+                        Some((id, Active(coupler.active)))
+                    },
+                    Some(Element::MidiAction(action)) => {
+                        Some((id, Active(action.active)))
+                    },
+                    Some(Element::MidiRange(range)) => {
+                        Some((id, Value(range.value)))
+                    },
+                    Some(Element::Roller(roller)) => {
+                        Some((id, Value(roller.value)))
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        match disposition.elements.get_mut(&id) {
+            Some(Element::Combination(combination)) => {
+                combination.state = state;
+            },
+            _ => {},
+        };
+    }
+    
+    fn roller_roll(&self, disposition: &mut Disposition, id: Id, previous_index: usize, new_index: usize) {
+        if let Some(Element::Roller(roller)) = disposition.elements.get_mut(&id) {
+            if let Some(id) = roller.references.get(previous_index).cloned() {
+                let event = match disposition.elements.get(&id) {
+                    Some(Element::Combination(_)) => None,
+                    _ => Some(Event::Activate(id, false))
+                };
+
+                if let Some(event) = event {
+                    self.events.send(event).unwrap();
+                }
+            }
+        }
+
+        if let Some(Element::Roller(roller)) = disposition.elements.get_mut(&id) {
+            if let Some(id) = roller.references.get(new_index).cloned() {
+                let event = match disposition.elements.get(&id) {
+                    Some(Element::Combination(_)) => Some(Event::Trigger(id)),
+                    _ => Some(Event::Activate(id, true)),
+                };
+
+                if let Some(event) = event {
+                    self.events.send(event).unwrap();
+                }
+            }
+        }
+    }
+    
+    fn memory_level(&self, disposition: &mut Disposition, id: Id, previous_index: usize, new_index: usize) {
 
         let mut previous_level = MemoryLevel{ title: None, references: BTreeMap::new() };
         for id in disposition.elements.keys().cloned().collect::<Vec<Id>>() {
@@ -473,40 +580,4 @@ fn press_key(disposition: &mut Disposition, id: Id, key: u8, down: bool) {
 
 fn coupler_transpose(key: u8, delta: i8) -> u8 {
     (key as i8 + delta).clamp(0, 127) as u8
-}
-
-fn read_state(disposition: &mut Disposition, id: Id) {
-    info!("combination capture ${}", id);
-
-    let ids: Vec<Id> = if let Some(Element::Combination(combination)) = disposition.elements.get(&id) {
-        combination.references.clone()
-    } else {
-        warn!("invalid id ${}", id);
-        return;
-    };
-
-    let state: CombinationState = ids
-        .into_iter()
-        .filter_map(|id| {
-            match disposition.elements.get_mut(&id) {
-                Some(Element::Coupler(coupler)) => {
-                    Some((id, Active(coupler.active)))
-                },
-                Some(Element::MidiAction(action)) => {
-                    Some((id, Active(action.active)))
-                },
-                Some(Element::MidiRange(range)) => {
-                    Some((id, Value(range.value)))
-                },
-                _ => None,
-            }
-        })
-        .collect();
-
-    match disposition.elements.get_mut(&id) {
-        Some(Element::Combination(combination)) => {
-            combination.state = state;
-        },
-        _ => {},
-    };
 }

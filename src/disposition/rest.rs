@@ -70,7 +70,7 @@ impl RestHandler {
                 self.clients.lock().unwrap().retain_mut(|client| {
                     match client.send_text(&read) {
                         Ok(_) => {
-                            debug!("modification sent to websocket client '{}'", client.id);
+                            debug!("modification ${} sent to websocket client '{}'", id, client.id);
                             true
                         },
                         Err(e) => {
@@ -131,7 +131,7 @@ fn start_server(id: Id, port: u16, events: Sender<Event>, clients: Clients) {
         
         match server {
             Ok(server) => {
-                print_info!("console ${} connected to port {}", id, server.server_addr());
+                print_info!("connected ${} to port {}", id, server.server_addr());
                 server.run();
             },
             Err(e) => {

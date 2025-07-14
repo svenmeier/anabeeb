@@ -1,5 +1,12 @@
 {
   "elements": {
+    "action": {
+      "active": true,
+      "term_binding": {
+        "activate": "3",
+        "deactivate": "3"
+      }
+    },
     "captor": {
       "active": false,
       "term_binding": {
@@ -12,10 +19,10 @@
         "trigger": "c"
       },
       "state": {
+        "action": true,
         "coupler1": true,
         "coupler2": true,
-        "range": 64,
-        "action": true
+        "range": 64
       }
     },
     "console1": {
@@ -62,35 +69,6 @@
         "deactivate": "2"
       }
     },
-    "range": {
-      "value": 64,
-      "term_binding": {
-        "increase": "+",
-        "decrease": "Hyphen",
-        "delta": 5
-      },
-      "midi_in_binding": {
-        "change": [
-          176,
-          7,
-          255
-        ]
-      },
-      "midi_out_binding": {
-        "change": [
-          177,
-          7,
-          255
-        ]
-      }
-    },
-    "action": {
-      "active": false,
-      "term_binding": {
-        "activate": "3",
-        "deactivate": "3"
-      }
-    },
     "keyboard1": {
       "port": "^Virtual Keyboard.*$",
       "midi_in_binding": {
@@ -112,6 +90,28 @@
         "increase": ".",
         "decrease": ",",
         "delta": 1
+      }
+    },
+    "range": {
+      "value": 64,
+      "term_binding": {
+        "increase": "+",
+        "decrease": "Hyphen",
+        "delta": 5
+      },
+      "midi_in_binding": {
+        "change": [
+          176,
+          7,
+          255
+        ]
+      },
+      "midi_out_binding": {
+        "change": [
+          177,
+          7,
+          255
+        ]
       }
     }
   }
