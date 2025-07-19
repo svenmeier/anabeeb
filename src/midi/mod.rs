@@ -1,9 +1,10 @@
 use std::error::Error;
 use midir::{MidiInput, MidiOutput};
+use crate::disposition::midi::MidiMessage;
 
 pub mod channel_pool;
 
-pub fn set_midi_channel(message: &Vec<u8>, new_channel: u8) -> Vec<u8> {
+pub fn set_midi_channel(message: &MidiMessage, new_channel: u8) -> Vec<u8> {
     let mut new_msg = message.clone();
     if let Some(status) = new_msg.get_mut(0) {
         *status = (*status & 0xF0) | (new_channel & 0x0F);
@@ -31,7 +32,7 @@ pub fn get_wildcard(message: &[u8], pattern: &[u8]) -> Option<(usize, u8)> {
     wildcard_index
 }
 
-pub fn set_wildcard(message: &[u8], value: u8) -> Vec<u8> {
+pub fn set_wildcard(message: &MidiMessage, value: u8) -> MidiMessage {
     message
         .iter()
         .map(|byte| if *byte == 255 { value } else { *byte })

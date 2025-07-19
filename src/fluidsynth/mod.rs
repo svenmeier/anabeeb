@@ -2,6 +2,7 @@ use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 use fluidsynth::synth::Synth;
 use log::{debug, error, info, warn};
+use crate::disposition::midi::MidiMessage;
 
 const FLUID_PANIC: i32 = -2;
 const FLUID_ERR: i32 = -1;
@@ -15,7 +16,7 @@ pub const PROGRAM_CHANGE: u8 = 0xC0;
 pub const CONTROL_CHANGE: u8 = 0xB0;
 pub const PITCH_BEND: u8 = 0xE0;
 
-pub fn send(synth: &mut Synth, channel: u8, message: Vec<u8>) {
+pub fn send(synth: &mut Synth, channel: u8, message: &MidiMessage) {
     let status = message[0];
     let data1 = message[1] as i32;
     let data2 = message[2] as i32;

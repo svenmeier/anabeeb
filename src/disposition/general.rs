@@ -1,19 +1,19 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Display, Formatter};
 use crokey::KeyCombination;
-use crossbeam_channel::Sender;
 use serde::{Deserialize, Serialize};
 use log::{debug, error, info, warn};
 use schemars::JsonSchema;
 use crate::disposition::fluidsynth::FluidsynthSound;
-use crate::disposition::midi_out::{midi_press_key};
 use crate::disposition::rest::{RestConsole};
 use crate::disposition::term::{TermMomentaryBinding, TermConsole, TermSwitchBinding, TermContinuousBinding};
 use crate::io::{combine_paths, read_memory};
 use crate::disposition::general::CombinationCapture::{Active, Value};
-use crate::disposition::midi::{MidiMomentaryBinding, MidiConsole, MidiRange, MidiKeyboard, MidiRank, MidiSound, MidiSwitchBinding, MidiAction, MidiContinuousBinding};
+use crate::disposition::midi::{MidiMomentaryBinding, MidiSwitchBinding, MidiContinuousBinding, MidiMessage};
+use crate::disposition::midi_in::{MidiConsole, MidiKeyboard};
+use crate::disposition::midi_out::{MidiAction, MidiRange, MidiRank, MidiSound};
 use crate::print_info;
-use crate::processor::Event;
+use crate::processor::{key_press_dispatch, Event, Events};
 
 #[derive(Serialize, Deserialize,JsonSchema)]
 pub struct Disposition {
@@ -52,7 +52,7 @@ impl From<&str> for Id {
 
 pub struct Binding {
     pub id: Id,
-    pub messages: Vec<Vec<u8>>,
+    pub messages: Vec<MidiMessage>,
     pub keys: Vec<KeyCombination>,
 }
 impl Binding {
@@ -154,10 +154,10 @@ pub struct Memory {
 }
 
 /**
- * A roller progresses through the referenced elements based on its current value,
- * activating the current element while deactivating the previous element,
- * or recalling the current element in case of a referenced combination.
- */
+ A roller progresses through the referenced elements based on its current value,
+ activating the current element while deactivating the previous element,
+ or recalling the current element in case of a referenced combination.
+*/
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Roller {
     #[serde(default)]
@@ -179,8 +179,6 @@ pub struct Roller {
     #[serde(default)]
     pub references: Vec<Id>,
 }
-
-fn default_memory_state() -> String { "memory.json".to_string() }
 
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]
 pub struct MemoryState {
@@ -241,10 +239,10 @@ pub enum CombinationCapture {
 }
 
 pub struct GeneralHandler {
-    pub events: Sender<Event>,
+    pub events: Events,
 }
 impl GeneralHandler {
-    pub fn new(events: Sender<Event>) -> Self {
+    pub fn new(events: Events) -> Self {
         Self {
             events,
         }
@@ -279,6 +277,9 @@ impl GeneralHandler {
             },
             Event::Change(id, value) => {
                 self.change(disposition, id.clone(), value.clone());
+            },
+            Event::KeyPress(id, key, down) => {
+                self.press_key(disposition, id.clone(), *key, *down);
             },
             Event::Trigger(id) => {
                 self.trigger(disposition, id.clone());
@@ -329,7 +330,7 @@ impl GeneralHandler {
         };
 
         if modified {
-            self.events.send(Event::Modified(id.clone())).unwrap();
+            self.events.send(Event::Modified(id.clone()));
         }
     }
 
@@ -354,7 +355,7 @@ impl GeneralHandler {
                     let references = coupler.references.clone();
                     let transpose = coupler.transpose.clone();
                     for key in keys {
-                        press_key_dispatch(disposition, references.clone(), coupler_transpose(key, transpose), active);
+                        key_press_dispatch(&self.events, &references, coupler_transpose(key, transpose), active);
                     }
                     true
                 } else {
@@ -365,7 +366,7 @@ impl GeneralHandler {
         };
 
         if modified {
-            self.events.send(Event::Modified(id.clone())).unwrap();
+            self.events.send(Event::Modified(id.clone()));
         }
     }
 
@@ -379,7 +380,7 @@ impl GeneralHandler {
             None
         });
         if let Some(captor_id) = captor_id {
-            self.events.send(Event::Activate(captor_id.clone(), false)).unwrap();
+            self.events.send_priority(Event::Activate(captor_id.clone(), false));
             self.combination_capture(disposition, id.clone());
             return;
         }
@@ -397,12 +398,12 @@ impl GeneralHandler {
                     match disposition.elements.get(&id) {
                         Some(Element::Coupler(_) | Element::MidiAction(_)) => {
                             if let Some(Active(active)) = state.get(&id) {
-                                self.events.send(Event::Activate(id.clone(), active.clone())).unwrap();
+                                self.events.send_priority(Event::Activate(id.clone(), active.clone()));
                             }
                         },
                         Some(Element::Roller(_) | Element::MidiRange(_)) => {
                             if let Some(Value(value)) = state.get(&id) {
-                                self.events.send(Event::Change(id.clone(), value.clone())).unwrap();
+                                self.events.send_priority(Event::Change(id.clone(), value.clone()));
                             }
                         },
                         _ => {},
@@ -460,7 +461,7 @@ impl GeneralHandler {
                 };
 
                 if let Some(event) = event {
-                    self.events.send(event).unwrap();
+                    self.events.send_priority(event);
                 }
             }
         }
@@ -473,7 +474,7 @@ impl GeneralHandler {
                 };
 
                 if let Some(event) = event {
-                    self.events.send(event).unwrap();
+                    self.events.send_priority(event);
                 }
             }
         }
@@ -517,67 +518,47 @@ impl GeneralHandler {
             }
         }
     }
-}
 
-
-pub fn press_key_dispatch(disposition: &mut Disposition, ids: Vec<Id>, key: u8, down: bool) {
-    for id in ids {
+    fn press_key(&self, disposition: &mut Disposition, id: Id, key: u8, down: bool) {
         match disposition.elements.get_mut(&id) {
-            Some(Element::Coupler(_)) => {
-                press_key(disposition, id, key, down);
-            },
-            Some(Element::MidiRank(_)) => {
-                midi_press_key(disposition, id, key, down);
-            },
-            None => {
-                warn!("unknown id ${}", id);
+            Some(Element::Coupler(coupler)) => {
+                let transpose = coupler.transpose;
+                if down {
+                    if let Some(value) = coupler._down_keys.get_mut(&key) {
+                        *value += 1;
+                    } else {
+                        coupler._down_keys.insert(key, 1);
+                        debug!("coupler ${} key {} true", id, key);
+                        if coupler.active {
+                            key_press_dispatch(&self.events, &coupler.references, coupler_transpose(key, transpose), true);
+                        }
+                    }
+                } else {
+                    if let Some(value) = coupler._down_keys.get_mut(&key) {
+                        if *value == 0 {
+                            // ignore
+                            return
+                        }
+                        *value -= 1;
+
+                        if *value == 0 {
+                            coupler._down_keys.remove(&key);
+                            debug!("coupler ${} key {} false", id, key);
+
+                            if coupler.active {
+                                key_press_dispatch(&self.events, &coupler.references, coupler_transpose(key, transpose), false);
+                            }
+                        }
+                    }
+                }
             },
             _ => {},
         };
     }
 }
 
-fn press_key(disposition: &mut Disposition, id: Id, key: u8, down: bool) {
-    match disposition.elements.get_mut(&id) {
-        Some(Element::Coupler(coupler)) => {
-            let transpose = coupler.transpose;
-            if down {
-                if let Some(value) = coupler._down_keys.get_mut(&key) {
-                    *value += 1;
-                } else {
-                    coupler._down_keys.insert(key, 1);
-                    debug!("coupler ${} key {} true", id, key);
-                    if coupler.active {
-                        let ids = coupler.references.clone();
-
-                        press_key_dispatch(disposition, ids, coupler_transpose(key, transpose), true);
-                    }
-                }
-            } else {
-                if let Some(value) = coupler._down_keys.get_mut(&key) {
-                    if *value == 0 {
-                        // ignore
-                        return
-                    }
-                    *value -= 1;
-
-                    if *value == 0 {
-                        coupler._down_keys.remove(&key);
-                        debug!("coupler ${} key {} false", id, key);
-
-                        if coupler.active {
-                            let ids = coupler.references.clone();
-
-                            press_key_dispatch(disposition, ids, coupler_transpose(key, transpose), false);
-                        }
-                    }
-                }
-            }
-        },
-        _ => {},
-    };
-}
-
 fn coupler_transpose(key: u8, delta: i8) -> u8 {
     (key as i8 + delta).clamp(0, 127) as u8
 }
+
+fn default_memory_state() -> String { "memory.json".to_string() }

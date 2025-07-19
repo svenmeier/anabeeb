@@ -56,10 +56,10 @@
           "properties": {
             "type": {
               "type": "string",
-              "const": "Memory"
+              "const": "Combination"
             }
           },
-          "$ref": "#/$defs/Memory",
+          "$ref": "#/$defs/Combination",
           "required": [
             "type"
           ]
@@ -69,10 +69,23 @@
           "properties": {
             "type": {
               "type": "string",
-              "const": "Combination"
+              "const": "Roller"
             }
           },
-          "$ref": "#/$defs/Combination",
+          "$ref": "#/$defs/Roller",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Memory"
+            }
+          },
+          "$ref": "#/$defs/Memory",
           "required": [
             "type"
           ]
@@ -332,107 +345,6 @@
         }
       }
     },
-    "TermContinuousBinding": {
-      "type": "object",
-      "properties": {
-        "increase": {
-          "type": "string"
-        },
-        "decrease": {
-          "type": "string"
-        },
-        "delta": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "increase",
-        "decrease",
-        "delta"
-      ]
-    },
-    "MidiContinuousBinding": {
-      "type": "object",
-      "properties": {
-        "change": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0,
-            "maximum": 255
-          },
-          "default": []
-        }
-      }
-    },
-    "Memory": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0,
-          "default": 0
-        },
-        "min": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "max": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "state": {
-          "type": "string",
-          "default": "memory.json"
-        },
-        "term_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TermContinuousBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "midi_in_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MidiContinuousBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "midi_out_binding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MidiContinuousBinding"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "min",
-        "max"
-      ]
-    },
     "MidiMomentaryBinding": {
       "type": "object",
       "properties": {
@@ -522,6 +434,170 @@
           "default": {}
         }
       }
+    },
+    "TermContinuousBinding": {
+      "type": "object",
+      "properties": {
+        "increase": {
+          "type": "string"
+        },
+        "decrease": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "increase",
+        "decrease",
+        "delta"
+      ]
+    },
+    "MidiContinuousBinding": {
+      "type": "object",
+      "properties": {
+        "change": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "default": []
+        }
+      }
+    },
+    "Roller": {
+      "description": "A roller progresses through the referenced elements based on its current value,\n activating the current element while deactivating the previous element,\n or recalling the current element in case of a referenced combination.",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 0
+        },
+        "min": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "term_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_in_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_out_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ]
+    },
+    "Memory": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0,
+          "default": 0
+        },
+        "min": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "state": {
+          "type": "string",
+          "default": "memory.json"
+        },
+        "term_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_in_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "midi_out_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiContinuousBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ]
     },
     "RestConsole": {
       "type": "object",

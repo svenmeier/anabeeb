@@ -1,21 +1,57 @@
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use crossbeam_channel::Sender;
-use log::{info, warn};
+use log::{debug, info, warn};
 use midir::{MidiInput, MidiInputConnection};
-use crate::disposition::general::{press_key_dispatch, Disposition, Element, Id};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use crate::disposition::general::{Disposition, Element, Id};
 use crate::midi::{get_input_ports, get_wildcard};
 use crate::{print_error, print_info};
-use crate::disposition::midi::{to_regex, MidiContinuousBinding, MidiKeyboardBinding, MidiMomentaryBinding, MidiSwitchBinding};
-use crate::processor::Event;
+use crate::disposition::midi::{to_regex, MidiContinuousBinding, MidiKeyboardBinding, MidiMessage, MidiMomentaryBinding, MidiSwitchBinding};
+use crate::disposition::midi_out::SharedOutput;
+use crate::processor::{key_press_dispatch, Event, Events};
+
+struct SharedInput {
+    _connection: MidiInputConnection<()>,
+    ids: Arc<Mutex<Vec<Id>>>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct MidiConsole {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<String>,
+
+    #[serde(default)]
+    pub references: Vec<Id>,
+
+    #[serde(skip)]
+    pub _output: Option<Rc<RefCell<SharedOutput>>>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct MidiKeyboard {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_in_binding : Option<MidiKeyboardBinding>,
+
+    #[serde(default)]
+    pub references: Vec<Id>,
+
+    #[serde(skip, default)]
+    pub _pressed_keys: HashSet<u8>,
+}
 
 pub struct MidiInHandler {
     inputs: HashMap<String, SharedInput>,
-    events: Sender<Event>,
+    events: Events,
 }
 impl MidiInHandler {
-    pub fn new(events: Sender<Event>) -> Self {
+    pub fn new(events: Events) -> Self {
         Self {
             inputs: HashMap::new(),
             events,
@@ -44,7 +80,7 @@ impl MidiInHandler {
 
     pub fn process(&mut self, disposition: &mut Disposition, event: &Event) {
         match event {
-            Event::MidiMessage(id, message) => {
+            Event::MidiInMessage(id, message) => {
                 match disposition.elements.get_mut(&id) {
                     Some(Element::MidiKeyboard(keyboard)) => {
                         if let Some(binding) = &mut disposition._binding {
@@ -57,19 +93,20 @@ impl MidiInHandler {
                         if let Some(binding) = &keyboard.midi_in_binding {
                             let key_down = binding.key_down.clone();
                             let key_up = binding.key_up.clone();
-                            let references = keyboard.references.clone();
 
                             if let Some((_, key)) = get_wildcard(&message, &key_down) {
                                 if keyboard._pressed_keys.insert(key) {
-                                    press_key_dispatch(disposition, references.clone(), key, true);
+                                    debug!("midi keyboard ${} key {} pressed", id, key);
+                                    key_press_dispatch(&self.events, &keyboard.references, key, true);
                                 } else {
-                                    warn!("midi keyboard key {} already pressed", key)
+                                    warn!("midi keyboard ${} key {} already pressed", id, key)
                                 }
                             } else if let Some((_, key)) = get_wildcard(&message, &key_up) {
                                 if keyboard._pressed_keys.remove(&key) {
-                                    press_key_dispatch(disposition, references.clone(), key, false);
+                                    debug!("midi keyboard ${} key {} released", id, key);
+                                    key_press_dispatch(&self.events, &keyboard.references, key, false);
                                 } else {
-                                    warn!("midi keyboard key {} was not pressed", key)
+                                    warn!("midi keyboard ${} key {} was not pressed", id, key)
                                 }
                             }
                         }
@@ -83,10 +120,13 @@ impl MidiInHandler {
                         }
 
                         let references = console.references.clone();
-                        self.match_bindings(disposition, references, message.clone());
+                        self.match_bindings(disposition, references, &message);
                     },
                     _ => {},
                 }
+            },
+            Event::MidiPanic => {
+                self.midi_panic(disposition);
             },
             Event::BindingEnd => {
                 binding_end(disposition);
@@ -95,7 +135,7 @@ impl MidiInHandler {
         }
     }
 
-    fn match_bindings(&self, disposition: &mut Disposition, ids: Vec<Id>, message: Vec<u8>) {
+    fn match_bindings(&self, disposition: &mut Disposition, ids: Vec<Id>, message: &MidiMessage) {
         for id in ids {
             match disposition.elements.get_mut(&id) {
                 Some(Element::Coupler(coupler)) => {
@@ -115,8 +155,8 @@ impl MidiInHandler {
                 },
                 Some(Element::Combination(combination)) => {
                     if let Some(binding) = &mut combination.midi_in_binding {
-                        if binding.trigger == message {
-                            self.events.send(Event::Trigger(id)).unwrap();
+                        if binding.trigger == *message {
+                            self.events.send(Event::Trigger(id));
                         }
                     }
                 },
@@ -128,23 +168,23 @@ impl MidiInHandler {
         }
     }
 
-    fn match_switch_binding(&self, id: Id, message: &Vec<u8>, binding: &Option<MidiSwitchBinding>) {
+    fn match_switch_binding(&self, id: Id, message: &MidiMessage, binding: &Option<MidiSwitchBinding>) {
         if let Some(binding) = binding {
             if binding.activate == *message {
-                self.events.send(Event::Activate(id, true)).unwrap();
+                self.events.send(Event::Activate(id, true));
             } else if binding.deactivate == *message {
-                self.events.send(Event::Activate(id, false)).unwrap();
+                self.events.send(Event::Activate(id, false));
             }
         }
     }
 
-    fn match_continuous_binding(&self, id: Id, min: u32, max: u32, message: &Vec<u8>, binding: &Option<MidiContinuousBinding>) {
+    fn match_continuous_binding(&self, id: Id, min: u32, max: u32, message: &MidiMessage, binding: &Option<MidiContinuousBinding>) {
         if let Some(binding) = binding {
             if let Some((_, value)) = get_wildcard(&message, &binding.change) {
                 let delta = max.saturating_sub(min);
                 let value = min.saturating_add((value as u32).saturating_mul(delta) / 127);
 
-                self.events.send(Event::Change(id, value)).unwrap();
+                self.events.send(Event::Change(id, value));
             }
         }
     }
@@ -181,8 +221,10 @@ impl MidiInHandler {
                                                               move |_, message, _| {
                                                                   let ids_lock = ids_clone.lock().unwrap();
 
+                                                                  debug!("midi in message {:?}", message);
+
                                                                   for id in ids_lock.iter() {
-                                                                      sender_clone.send(Event::MidiMessage(id.clone(), message.to_vec())).unwrap();
+                                                                      sender_clone.send(Event::MidiInMessage(id.clone(), message.to_vec()));
                                                                   }
                                                               },
                                                               (),
@@ -200,36 +242,24 @@ impl MidiInHandler {
 
         Err(format!("no input port '{}'", name).into())
     }
-}
 
-struct SharedInput {
-    _connection: MidiInputConnection<()>,
-    ids: Arc<Mutex<Vec<Id>>>,
-}
-
-pub fn midi_panic(disposition: &mut Disposition) {
-    print_info!("midi panic");
-    for id in disposition.elements.keys().cloned().collect::<Vec<Id>>() {
-        match disposition.elements.get_mut(&id) {
-            Some(Element::MidiKeyboard(_)) => {
-                midi_keyboard_panic(disposition, id);
-            },
-            _ => {},
-        };
-    }
-}
-
-fn midi_keyboard_panic(disposition: &mut Disposition, id: Id) {
-    match disposition.elements.get(&id) {
-        Some(Element::MidiKeyboard(keyboard)) => {
-            let keys = keyboard._pressed_keys.clone();
-            let references = keyboard.references.clone();
-            for key in keys {
-                info!("midi keyboard panic ${} key {}", id, key);
-                press_key_dispatch(disposition, references.clone(), key, false);
+    fn midi_panic(&self, disposition: &Disposition) {
+        let mut panicked = false;
+        
+        for (id, element) in &disposition.elements {
+            if let Element::MidiKeyboard(keyboard) = element {
+                let keys = keyboard._pressed_keys.clone();
+                for key in keys {
+                    panicked = true;
+                    info!("midi panic ${} stuck key {}", id, key);
+                    key_press_dispatch(&self.events, &keyboard.references, key, false);
+                }
             }
-        },
-        _ => {},
+        }
+        
+        if !panicked {
+            info!("midi panic no stuck keys");
+        }
     }
 }
 
@@ -264,9 +294,9 @@ fn binding_end(disposition: &mut Disposition) {
     }
 }
 
-fn midi_keyboard_binding(messages: &Vec<Vec<u8>>) -> Option<MidiKeyboardBinding> {
-    let mut key_down: Vec<u8> = Vec::new();
-    let mut key_up: Vec<u8> = Vec::new();
+fn midi_keyboard_binding(messages: &Vec<MidiMessage>) -> Option<MidiKeyboardBinding> {
+    let mut key_down: MidiMessage = Vec::new();
+    let mut key_up: MidiMessage = Vec::new();
 
     for message in messages {
         if message.len() >= 3 {
@@ -286,10 +316,10 @@ fn midi_keyboard_binding(messages: &Vec<Vec<u8>>) -> Option<MidiKeyboardBinding>
     if key_down.is_empty() || key_up.is_empty() {
         return None;
     }
-    Some(MidiKeyboardBinding{ key_down, key_up})
+    Some(MidiKeyboardBinding{ key_down, key_up })
 }
 
-fn continuous_binding(messages: &Vec<Vec<u8>>) -> Option<MidiContinuousBinding> {
+fn continuous_binding(messages: &Vec<MidiMessage>) -> Option<MidiContinuousBinding> {
     let change = messages.iter().cloned().reduce(|mut a, b| {
         if a[0] != b[0] {
             a[0] = 255;
@@ -303,10 +333,10 @@ fn continuous_binding(messages: &Vec<Vec<u8>>) -> Option<MidiContinuousBinding> 
         a
     });
 
-    change.map(|m| MidiContinuousBinding {change: m.clone()})
+    change.map(|m| MidiContinuousBinding { change: m.clone() })
 }
 
-fn momentary_binding(messages: &Vec<Vec<u8>>) -> Option<MidiMomentaryBinding> {
+fn momentary_binding(messages: &Vec<MidiMessage>) -> Option<MidiMomentaryBinding> {
 
     let len = messages.len();
     if len >= 1 {
@@ -317,7 +347,7 @@ fn momentary_binding(messages: &Vec<Vec<u8>>) -> Option<MidiMomentaryBinding> {
     None
 }
 
-fn switch_binding(messages: &Vec<Vec<u8>>) -> Option<MidiSwitchBinding> {
+fn switch_binding(messages: &Vec<MidiMessage>) -> Option<MidiSwitchBinding> {
     let len = messages.len();
     if len >= 2 {
         return Some(MidiSwitchBinding{

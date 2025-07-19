@@ -1,23 +1,105 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::rc::Rc;
-use crossbeam_channel::Sender;
 use log::{debug, error, info, warn};
 use midir::{MidiOutput, MidiOutputConnection};
-use crate::disposition::fluidsynth::fluidsynth_send_messages;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use crate::disposition::general::{Disposition, Element, Id};
-use crate::disposition::midi::{MidiRange, MidiAction, MidiSwitchBinding, MidiContinuousBinding, to_regex};
+use crate::disposition::midi::{MidiSwitchBinding, MidiContinuousBinding, to_regex, MidiMessage};
 use crate::midi::{get_output_ports, set_midi_channel, set_wildcard};
 use crate::{print_error, print_info};
-use crate::processor::Event;
+use crate::disposition::term::{TermContinuousBinding, TermSwitchBinding};
+use crate::midi::channel_pool::ChannelPool;
+use crate::processor::{midi_out_dispatch, Event, Events};
+
+pub struct SharedOutput {
+    connection: MidiOutputConnection,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct MidiRange {
+    #[serde(default)]
+    pub value: u32,
+
+    pub min: u32,
+
+    pub max: u32,
+
+    pub change: Vec<MidiMessage>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub term_binding: Option<TermContinuousBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_in_binding: Option<MidiContinuousBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_out_binding: Option<MidiContinuousBinding>,
+
+    #[serde(default)]
+    pub references: Vec<Id>,
+
+    #[serde(skip, default)]
+    pub _channels: HashSet<String>
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct MidiAction {
+    #[serde(default)]
+    pub active: bool,
+
+    pub engage: Vec<MidiMessage>,
+
+    pub disengage: Vec<MidiMessage>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub term_binding: Option<TermSwitchBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_in_binding: Option<MidiSwitchBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_out_binding: Option<MidiSwitchBinding>,
+
+    #[serde(default)]
+    pub references: Vec<Id>,
+
+    #[serde(skip, default)]
+    pub _channels: HashSet<String>
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct MidiRank {
+    #[serde(default)]
+    pub references: Vec<Id>,
+
+    pub acquire: Vec<MidiMessage>,
+    pub release: Vec<MidiMessage>,
+
+    #[serde(skip, default)]
+    pub _pressed_key_count: u8,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct MidiSound {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<String>,
+
+    #[serde(skip)]
+    pub _output: Option<Rc<RefCell<SharedOutput>>>,
+
+    #[serde(skip, default)]
+    pub _channels: ChannelPool,
+}
 
 pub struct MidiOutHandler {
-    events: Sender<Event>,
+    events: Events,
     outputs: HashMap<String, Rc<RefCell<SharedOutput>>>,
 }
 impl MidiOutHandler {
-    pub fn new(events: Sender<Event>) -> Self {
+    pub fn new(events: Events) -> Self {
         Self {
             events,
             outputs: HashMap::new(),
@@ -52,6 +134,12 @@ impl MidiOutHandler {
             Event::Change(id, value) => {
                 self.change(disposition, id.clone(), value.clone());
             },
+            Event::KeyPress(id, key, down) => {
+                self.press_key(disposition, id.clone(), *key, *down);
+            },
+            Event::MidiOutMessages(id, channel, messages, release) => {
+                self.send_messages(disposition, id.clone(), channel, messages, *release);
+            },
             Event::Modified(id) => {
                 let element = disposition.elements.get(&id);
 
@@ -84,7 +172,7 @@ impl MidiOutHandler {
     fn send_switch_binding(&self, id: &Id, disposition: &mut Disposition, active: bool, binding: &Option<MidiSwitchBinding>) {
         if let Some(binding) = binding {
             let message = if active { binding.activate.clone() } else { binding.deactivate.clone() };
-            midi_console_send(disposition, id.clone(), message);
+            console_send(disposition, id.clone(), message);
         }
     }
 
@@ -97,8 +185,8 @@ impl MidiOutHandler {
                 0
             };
 
-            let message = set_wildcard(&*binding.change, value);
-            midi_console_send(disposition, id.clone(), message)
+            let message = set_wildcard(&binding.change, value);
+            console_send(disposition, id.clone(), message)
         }
     }
 
@@ -110,10 +198,9 @@ impl MidiOutHandler {
                     range.value = value;
                     print_info!("range ${} changed {}", id, value);
 
-                    let references = range.references.clone();
-                    let messages = midi_range_messages(range);
+                    let messages = range_messages(range);
                     for channel in range._channels.clone().iter() {
-                        send_messages_dispatch(disposition, references.clone(), channel.clone(), false, messages.clone());
+                        midi_out_dispatch(&self.events, &range.references, channel, &messages, false);
                     }
 
                     true
@@ -125,7 +212,7 @@ impl MidiOutHandler {
         };
 
         if modified {
-            self.events.send(Event::Modified(id.clone())).unwrap();
+            self.events.send(Event::Modified(id.clone()));
         }
     }
 
@@ -136,10 +223,9 @@ impl MidiOutHandler {
                     action.active = active;
                     print_info!("action ${} activated {}", id, active);
 
-                    let references = action.references.clone();
-                    let messages = midi_action_messages(action);
+                    let messages = action_messages(action);
                     for channel in action._channels.clone().iter() {
-                        send_messages_dispatch(disposition, references.clone(), channel.clone(), false, messages.clone());
+                        midi_out_dispatch(&self.events, &action.references, channel, &messages, false);
                     }
 
                     true
@@ -151,7 +237,7 @@ impl MidiOutHandler {
         };
 
         if modified {
-            self.events.send(Event::Modified(id.clone())).unwrap();
+            self.events.send(Event::Modified(id.clone()));
         }
     }
 
@@ -193,130 +279,103 @@ impl MidiOutHandler {
 
         Err(format!("no output port '{}'", name).into())
     }
-}
 
-pub struct SharedOutput {
-    connection: MidiOutputConnection,
-}
-
-fn send_messages_dispatch(disposition: &mut Disposition, ids: Vec<Id>, channel: String, release: bool, messages: Vec<Vec<u8>>) {
-    for id in ids {
+    fn send_messages(&self, disposition: &mut Disposition, id: Id, channel: &String, messages: &Vec<MidiMessage>, release: bool) {
         match disposition.elements.get_mut(&id) {
-            Some(Element::MidiRange(_) | Element::MidiAction(_) | Element::MidiSound(_)) => {
-                send_messages(disposition, id, channel.clone(), release, messages.clone());
+            Some(Element::MidiSound(sound)) => {
+                let (channel_number, new) = sound._channels.acquire(channel.as_str());
+                if channel_number < 16 {
+                    if let Some(ref mut output) = sound._output {
+                        for message in messages.iter() {
+                            debug!("midi sound ${} send '{}' {} '{:?}'", id, channel, channel_number, message);
+                            let channel_message = set_midi_channel(message, channel_number);
+                            output.borrow_mut().connection.send(&channel_message).unwrap();
+                        }
+                    }
+                } else {
+                    if new {
+                        error!("no channel available in ${} for '{}'", id, channel);
+                    }
+                }
+
+                if release {
+                    sound._channels.release(channel.as_str());
+                }
             },
-            Some(Element::FluidsynthSound(_)) => {
-                fluidsynth_send_messages(disposition, id, channel.clone(), release, messages.clone());
-            },
-            None => {
-                warn!("unknown id ${}", id);
+            Some(Element::MidiRange(range)) => {
+                midi_out_dispatch(&self.events, &range.references, channel, &messages, release);
+                if release {
+                    range._channels.remove(channel);
+                } else {
+                    if range._channels.insert(channel.clone()) {
+                        let range_messages = range_messages(range);
+                        midi_out_dispatch(&self.events, &range.references, channel, &range_messages, false);
+                    }
+                }
+            }
+            Some(Element::MidiAction(action)) => {
+                midi_out_dispatch(&self.events, &action.references, channel, &messages, release);
+                if release {
+                    action._channels.remove(channel);
+                } else {
+                    if action._channels.insert(channel.clone()) {
+                        let action_messages = action_messages(action);
+                        midi_out_dispatch(&self.events, &action.references, channel, &action_messages, false);
+                    }
+                }
+
             },
             _ => {},
-        };
+        }
+    }
+
+    fn press_key(&self, disposition: &mut Disposition, id: Id, key: u8, down: bool) {
+        match disposition.elements.get_mut(&id) {
+            Some(Element::MidiRank(rank)) => {
+                debug!("midi rank ${} key {} {}", id, key, down);
+                if down { rank._pressed_key_count += 1 } else { rank._pressed_key_count -= 1 };
+
+                let pressed_keys = rank._pressed_key_count;
+
+                let message = if down { vec![144, key, 127] } else { vec![128, key, 0] };
+                let messages = match (down, pressed_keys) {
+                    (true, 1) => {
+                        let mut messages = rank.acquire.clone();
+                        messages.push(message);
+                        messages
+                    },
+                    (false, 0) => {
+                        let mut messages = rank.release.clone();
+                        messages.push(message);
+                        messages
+                    },
+                    _ => {
+                        vec![message]
+                    },
+                };
+
+                midi_out_dispatch(&self.events, &rank.references, &id.0, &messages, pressed_keys == 0);
+            }
+            _ => {},
+        }
     }
 }
 
-fn send_messages(disposition: &mut Disposition, id: Id, channel: String, release: bool, mut messages: Vec<Vec<u8>>) {
-    match disposition.elements.get_mut(&id) {
-        Some(Element::MidiSound(sound)) => {
-            let (channel_number, new) = sound._channels.acquire(channel.as_str());
-            if channel_number < 16 {
-                if let Some(ref mut output) = sound._output {
-                    for message in messages.iter() {
-                        debug!("midi sound ${} send '{}' {} '{:?}'", id, channel, channel_number, message);
-                        let channel_message = set_midi_channel(message, channel_number);
-                        output.borrow_mut().connection.send(&channel_message).unwrap();
-                    }
-                }
-            } else {
-                if new {
-                    error!("no channel available in ${} for '{}'", id, channel);
-                }
-            }
-
-            if release {
-                sound._channels.release(channel.as_str());
-            }
-        },
-        Some(Element::MidiRange(filter)) => {
-            if release {
-                filter._channels.remove(&channel);
-            } else {
-                if filter._channels.insert(channel.clone()) {
-                    for message in midi_range_messages(filter) {
-                        messages.push(message);
-                    }
-                }
-            }
-
-            let references = filter.references.clone();
-            send_messages_dispatch(disposition, references, channel, release, messages);
-        },
-        Some(Element::MidiAction(action)) => {
-            if release {
-                action._channels.remove(&channel);
-            } else {
-                if action._channels.insert(channel.clone()) {
-                    for message in midi_action_messages(action) {
-                        messages.push(message);
-                    }
-                }
-            }
-
-            let references = action.references.clone();
-            send_messages_dispatch(disposition, references, channel, release, messages);
-        },
-        _ => {},
-    }
-}
-
-fn midi_range_messages(filter: &mut MidiRange) -> Vec<Vec<u8>> {
+fn range_messages(filter: &mut MidiRange) -> Vec<MidiMessage> {
     filter.change.iter().map(| message | {
         set_wildcard(message, filter.value as u8)
     }).collect()
 }
 
-fn midi_action_messages(filter: &mut MidiAction) -> Vec<Vec<u8>> {
-    if  filter.active {
-        filter.engage.clone()
+fn action_messages(action: &mut MidiAction) -> Vec<MidiMessage> {
+    if  action.active {
+        action.engage.clone()
     } else {
-        filter.disengage.clone()
+        action.disengage.clone()
     }
 }
 
-pub fn midi_press_key(disposition: &mut Disposition, id: Id, key: u8, down: bool) {
-    match disposition.elements.get_mut(&id) {
-        Some(Element::MidiRank(rank)) => {
-            debug!("midi rank ${} key {} {}", id, key, down);
-            if down { rank._pressed_key_count += 1 } else { rank._pressed_key_count -= 1 };
-
-            let pressed_keys = rank._pressed_key_count;
-
-            let message = if down { vec![144, key, 127] } else { vec![128, key, 0] };
-            let messages = match (down, pressed_keys) {
-                (true, 1) => {
-                    let mut messages = rank.acquire.clone();
-                    messages.push(message);
-                    messages
-                },
-                (false, 0) => {
-                    let mut messages = rank.release.clone();
-                    messages.push(message);
-                    messages
-                },
-                _ => {
-                    vec![message]
-                },
-            };
-
-            let references = rank.references.clone();
-            send_messages_dispatch(disposition, references, id.0, pressed_keys == 0, messages);
-        }
-        _ => {},
-    }
-}
-
-fn midi_console_send(disposition: &mut Disposition, reference: Id, message: Vec<u8>) {
+fn console_send(disposition: &mut Disposition, reference: Id, message: MidiMessage) {
     if message.is_empty() {
         return;
     }

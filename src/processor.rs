@@ -5,6 +5,7 @@ use crate::disposition::general::{Disposition, Element, GeneralHandler, Id};
 use crate::disposition::rest::RestHandler;
 use crate::{print_error, print_info, Args};
 use crate::disposition::fluidsynth::FluidsynthHandler;
+use crate::disposition::midi::MidiMessage;
 use crate::disposition::midi_in::MidiInHandler;
 use crate::disposition::midi_out::MidiOutHandler;
 use crate::disposition::term::TermHandler;
@@ -13,6 +14,7 @@ use crate::setup::setup;
 
 #[derive(Clone)]
 pub enum Event {
+    KeyPress(Id, u8, bool),
     Activate(Id, bool),
     Change(Id, u32),
     Trigger(Id),
@@ -22,14 +24,33 @@ pub enum Event {
     BindingEnd,
     Save,
     Quit,
-    MidiMessage(Id, Vec<u8>),
+    MidiPanic,
+    MidiInMessage(Id, MidiMessage),
+    MidiOutMessages(Id, String, Vec<MidiMessage>, bool),
     TermKey(KeyCombination),
     RestRequest(Id, Box<Option<Event>>, Sender<Option<String>>),
 }
 
+#[derive(Clone)]
+pub struct Events{
+    sender: Sender<Event>,
+    priority_sender: Sender<Event>,
+}
+impl Events {
+    pub fn send(&self, event: Event) {
+        self.sender.send(event).unwrap();
+    }
+
+    pub fn send_priority(&self, event: Event) {
+        self.priority_sender.send(event).unwrap();
+    }
+}
+
+
 pub struct Processor {
     args: Args,
     receiver: Receiver<Event>,
+    priority_receiver: Receiver<Event>,
     midi_in_handler: MidiInHandler,
     midi_out_handler: MidiOutHandler,
     rest_handler: RestHandler,
@@ -38,14 +59,16 @@ pub struct Processor {
     general_handler: GeneralHandler,
     errors: Vec<Event>,
 }
-
 impl Processor {
     pub fn new(args: Args) -> Self {
-        let (events, receiver) = unbounded::<Event>();
-        
+        let (sender, receiver) = unbounded::<Event>();
+        let (priority_sender, priority_receiver) = unbounded::<Event>();
+        let events = Events{ sender, priority_sender };
+
         Self {
             args,
             receiver,
+            priority_receiver,
             midi_in_handler: MidiInHandler::new(events.clone()),
             midi_out_handler: MidiOutHandler::new(events.clone()),
             rest_handler: RestHandler::new(events.clone()),
@@ -55,7 +78,7 @@ impl Processor {
             errors: Vec::new(),
         }
     }
-    
+
     pub fn init(&mut self, disposition: &mut Disposition) {
 
         if self.args.setup {
@@ -78,25 +101,34 @@ impl Processor {
 
     pub fn process(&mut self, disposition: &mut Disposition) {
         loop {
-            let event = self.receiver.recv().unwrap();
+            let mut event = self.receiver.recv().unwrap();
 
-            match event {
-                Event::Error(_, _) => self.errors.push(event.clone()),
-                Event::Save => {
-                    self.save(disposition);
-                },
-                Event::Quit => {
-                    self.quit(disposition);
-                },
-                _ => {
-                    self.midi_in_handler.process(disposition, &event);
-                    self.midi_out_handler.process(disposition, &event);
-                    self.rest_handler.process(disposition, &event);
-                    self.term_handler.process(disposition, &event);
-                    self.fluidsynth_handler.process(disposition, &event);
-                    self.general_handler.process(disposition, &event);
-                },
-            };
+            loop {
+                match event {
+                    Event::Error(_, _) => self.errors.push(event.clone()),
+                    Event::Save => {
+                        self.save(disposition);
+                    },
+                    Event::Quit => {
+                        self.quit(disposition);
+                    },
+                    _ => {
+                        self.midi_in_handler.process(disposition, &event);
+                        self.midi_out_handler.process(disposition, &event);
+                        self.rest_handler.process(disposition, &event);
+                        self.term_handler.process(disposition, &event);
+                        self.fluidsynth_handler.process(disposition, &event);
+                        self.general_handler.process(disposition, &event);
+                    },
+                };
+
+                let priority_event = self.priority_receiver.try_recv();
+                if let Ok(priority_event) = priority_event {
+                    event = priority_event;
+                } else {
+                    break;
+                }
+            }
         }
     }
 
@@ -141,5 +173,17 @@ impl Processor {
         }
         print_info!("good bye");
         exit(0);
+    }
+}
+
+pub fn key_press_dispatch(events: &Events, ids: &Vec<Id>, key: u8, down: bool) {
+    for id in ids {
+        events.send_priority(Event::KeyPress(id.clone(), key, down));
+    }
+}
+
+pub fn midi_out_dispatch(events: &Events, ids: &Vec<Id>, channel: &String, messages: &Vec<MidiMessage>, release: bool) {
+    for id in ids {
+        events.send_priority(Event::MidiOutMessages(id.clone(), channel.clone(), messages.clone(), release));
     }
 }

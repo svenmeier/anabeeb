@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap};
 use serde::{Deserialize, Serialize};
-use crossbeam_channel::{bounded, Sender};
+use crossbeam_channel::{bounded};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use log::{debug, error, info};
@@ -8,16 +8,16 @@ use regex::{Captures, Regex};
 use rouille::{websocket, Request, Response, Server};
 use schemars::JsonSchema;
 use crate::disposition::general::{Disposition, Element, Id};
-use crate::processor::{Event};
+use crate::processor::{Event, Events};
 use std::time::Duration;
 use crate::{print_error, print_info};
 use crate::rouille::Client;
 
 #[derive(Serialize)]
-struct Data<'a> {
+struct ResponseData<'a> {
     elements: BTreeMap<&'a Id, &'a Element>,
 }
-impl<'a> Data<'a> {
+impl<'a> ResponseData<'a> {
     pub fn new() -> Self {
         Self { 
             elements: BTreeMap::new(),
@@ -25,12 +25,18 @@ impl<'a> Data<'a> {
     }
 }
 
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct RestConsole {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+}
+
 pub struct RestHandler {
-    events: Sender<Event>,
+    events: Events,
     clients: Clients,
 }
 impl RestHandler {
-    pub fn new(events: Sender<Event>) -> Self {
+    pub fn new(events: Events) -> Self {
         Self {
             events,
             clients: Arc::new(Mutex::new(vec![])),
@@ -54,14 +60,14 @@ impl RestHandler {
         match event {
             Event::RestRequest(id, event, result) => {
                 if let Some(event) = event.as_ref().as_ref() {
-                    self.events.send(event.clone()).unwrap();
+                    self.events.send(event.clone());
                 }
     
-                let data = to_data(disposition, &id);
+                let data = to_response_data(disposition, &id);
                 result.send(data).unwrap();
             }
             Event::Modified(id) => {
-                let read = match to_data(disposition, &id) {
+                let read = match to_response_data(disposition, &id) {
                     Some(read) => read,
                     None => return,
                 };
@@ -85,15 +91,9 @@ impl RestHandler {
     }
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct RestConsole {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub port: Option<u16>,
-}
-
 type Clients = Arc<Mutex<Vec<Client>>>;
 
-fn start_server(id: Id, port: u16, events: Sender<Event>, clients: Clients) {
+fn start_server(id: Id, port: u16, events: Events, clients: Clients) {
     thread::spawn(move || {
         let server = Server::new(format!("0.0.0.0:{}", port), move |request| {
             let mut response = Response::empty_404();
@@ -161,15 +161,15 @@ fn ws(request: &Request, clients: Clients) -> Response {
     response
 }
 
-fn post_binding(events: &Sender<Event>, caps: Captures) -> Response {
+fn post_binding(events: &Events, caps: Captures) -> Response {
     let id: Id = caps[1].into();
 
     match &caps[2] {
         "start" => {
-            events.send(Event::BindingStart(id.clone())).unwrap();
+            events.send(Event::BindingStart(id.clone()));
         },
         "end" => {
-            events.send(Event::BindingEnd).unwrap();
+            events.send(Event::BindingEnd);
         }
         _ => {
             return Response::empty_400();
@@ -178,13 +178,13 @@ fn post_binding(events: &Sender<Event>, caps: Captures) -> Response {
     Response::text("").with_status_code(200)
 }
 
-fn get_element(events: &Sender<Event>, caps: Captures) -> Response{
+fn get_element(events: &Events, caps: Captures) -> Response{
     let id: Id = caps[1].into();
 
     send_and_receive(&events, id, None)
 }
 
-fn post_element(events: &Sender<Event>, caps: Captures) -> Response {
+fn post_element(events: &Events, caps: Captures) -> Response {
     let id: Id = caps[1].into();
 
     let event = match &caps[2] {
@@ -205,10 +205,10 @@ fn post_element(events: &Sender<Event>, caps: Captures) -> Response {
     send_and_receive(&events, id, Some(event))
 }
 
-fn send_and_receive(events: &Sender<Event>, id: Id, event: Option<Event>) -> Response {
+fn send_and_receive(events: &Events, id: Id, event: Option<Event>) -> Response {
     let (sender, receiver) = bounded(1);
 
-    events.send(Event::RestRequest(id, Box::new(event), sender)).unwrap();
+    events.send(Event::RestRequest(id, Box::new(event), sender));
 
     match receiver.recv_timeout(Duration::from_secs(5)) {
         Ok(Some(result)) => Response::text(result),
@@ -217,10 +217,10 @@ fn send_and_receive(events: &Sender<Event>, id: Id, event: Option<Event>) -> Res
     }
 }
 
-fn to_data(disposition: &Disposition, id: &Id) -> Option<String> {
+fn to_response_data(disposition: &Disposition, id: &Id) -> Option<String> {
     match disposition.elements.get(id) {
         Some(element) => {
-            let mut data = Data::new();
+            let mut data = ResponseData::new();
             data.elements.insert(id, element);
 
             Some(serde_json::to_string_pretty(&data).unwrap())

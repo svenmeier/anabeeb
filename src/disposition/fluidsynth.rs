@@ -1,21 +1,66 @@
 use std::error::Error;
-use crossbeam_channel::Sender;
 use fluidsynth::audio::AudioDriver;
 use fluidsynth::synth::{Synth};
 use log::{debug, error, info};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use crate::disposition::general::{Disposition, Element, Id};
+use crate::disposition::midi::MidiMessage;
 use crate::fluidsynth::{send, synth_init_logging};
 use crate::io::combine_paths;
 use crate::midi::channel_pool::ChannelPool;
-use crate::processor::Event;
+use crate::processor::{Event, Events};
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct FluidsynthSound {
+    #[serde(default = "default_soundfont")]
+    pub soundfont: String,
+
+    #[serde(default)]
+    pub bank_offset: i32,
+
+    pub gain: f32,
+
+    pub interpolate: i32,
+
+    pub settings: FluidsynthSettings,
+
+    #[serde(skip, default)]
+    _channels: ChannelPool,
+
+    #[serde(skip)]
+    _synth: Option<(Synth, AudioDriver)>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct FluidsynthSettings {
+    synth_overflow_age: f64,
+    synth_overflow_percussion: f64,
+    synth_overflow_released: f64,
+    synth_overflow_sustained: f64,
+    synth_overflow_volume: f64,
+    synth_sample_rate: f64,
+    synth_cpu_cores: i32,
+    synth_midi_channels: i32,
+    synth_polyphony: i32,
+    synth_reverb_active: i32,
+    synth_reverb_damp: f64,
+    synth_reverb_level: f64,
+    synth_reverb_width: f64,
+    synth_reverb_room_size: f64,
+    audio_periods: i32,
+    audio_period_size: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    audio_driver: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    audio_device: Option<String>,
+}
 
 pub struct FluidsynthHandler {
-    pub events: Sender<Event>,
+    pub events: Events,
 }
 impl FluidsynthHandler {
-    pub fn new(events: Sender<Event>) -> Self {
+    pub fn new(events: Events) -> Self {
         Self {
             events
         }
@@ -44,55 +89,14 @@ impl FluidsynthHandler {
         }
     }
 
-    pub fn process(&self, _: &mut Disposition, _: &Event) {
+    pub fn process(&self, disposition: &mut Disposition, event: &Event) {
+        match event {
+            Event::MidiOutMessages(id, channel, messages, release) => {
+                send_messages(disposition, id.clone(), channel.clone(), messages, *release);
+            },
+            _ => {},
+        }
     }
-}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct FluidsynthSound {
-    #[serde(default = "default_soundfont")]
-    pub soundfont: String,
-
-    #[serde(default)]
-    pub bank_offset: i32,
-    
-    pub gain: f32,
-    
-    pub interpolate: i32,
-
-    pub settings: FluidsynthSettings,
-
-    #[serde(skip, default)]
-    _channels: ChannelPool,
-
-    #[serde(skip)]
-    _synth: Option<(Synth, AudioDriver)>,
-}
-
-fn default_soundfont() -> String { "disposition.sf2".to_string()}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct FluidsynthSettings {
-    synth_overflow_age: f64,
-    synth_overflow_percussion: f64,
-    synth_overflow_released: f64,
-    synth_overflow_sustained: f64,
-    synth_overflow_volume: f64,
-    synth_sample_rate: f64,
-    synth_cpu_cores: i32,
-    synth_midi_channels: i32,
-    synth_polyphony: i32,
-    synth_reverb_active: i32,
-    synth_reverb_damp: f64,
-    synth_reverb_level: f64,
-    synth_reverb_width: f64,
-    synth_reverb_room_size: f64,
-    audio_periods: i32,
-    audio_period_size: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    audio_driver: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    audio_device: Option<String>,
 }
 
 fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, AudioDriver), Box<dyn Error>> {
@@ -142,7 +146,7 @@ fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, 
     Ok((synth, driver))
 }
 
-pub fn fluidsynth_send_messages(disposition: &mut Disposition, id: Id, channel: String, release: bool, messages: Vec<Vec<u8>>) {
+fn send_messages(disposition: &mut Disposition, id: Id, channel: String, messages: &Vec<MidiMessage>, release: bool) {
     match disposition.elements.get_mut(&id) {
         Some(Element::FluidsynthSound(sound)) => {
             if let Some((ref mut synth, _)) = sound._synth {
@@ -166,3 +170,5 @@ pub fn fluidsynth_send_messages(disposition: &mut Disposition, id: Id, channel: 
         _ => {}
     };
 }
+
+fn default_soundfont() -> String { "disposition.sf2".to_string()}
