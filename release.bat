@@ -6,6 +6,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
+for /f "tokens=2" %%v in ('cargo info anabeeb ^| findstr /b "version:"') do set "VERSION=%%v"
+
 set EXE=
 for %%f in (target\release\*.exe) do set EXE=%%f
 if "%EXE%"=="" (
@@ -17,7 +19,7 @@ set SCHEMAS="schemas"
 set JSON="*.json"
 set DLLS="target\fluidsynth\bin\*.dll"
 set TEMP="target\anabeeb-windows"
-set ZIP="target\anabeeb-windows.zip"
+set ZIP="target\anabeeb-%VERSION%-windows.zip"
 
 if exist %TEMP% rmdir /s /q %TEMP%
 mkdir %TEMP%

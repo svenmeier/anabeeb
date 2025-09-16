@@ -4,11 +4,13 @@ set -e
 cargo deb
 
 ARCH=$(uname -m)
+VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/version *= *"(.*)"/\1/')
+
 DEB=$(find target/debian -name "*.deb" | head -n 1)
 EXAMPLES="examples"
 SCHEMAS="schemas"
 JSON="*.json"
-ZIP="target/anabeeb-linux-$ARCH.zip"
+ZIP="target/anabeeb-${VERSION}-linux-${ARCH}.zip"
 
 rm -f "$ZIP"
 zip -j "$ZIP" $DEB
