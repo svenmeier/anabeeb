@@ -1,28 +1,37 @@
 ### coupler1
-POST http://localhost:4040/coupler1/activate
+POST http://localhost:4040/element/coupler1/activate
 ###
-POST http://localhost:4040/coupler1/deactivate
+POST http://localhost:4040/element/coupler1/deactivate
 ###
-GET http://localhost:4040/coupler1
+GET http://localhost:4040/element/coupler1
 
 ### coupler2
-POST http://localhost:4040/coupler2/activate
+POST http://localhost:4040/element/coupler2/activate
 ###
-POST http://localhost:4040/coupler2/deactivate
+POST http://localhost:4040/element/coupler2/deactivate
 ###
-GET http://localhost:4040/coupler2
+GET http://localhost:4040/element/coupler2
 
 ### filter2
-POST http://localhost:4040/filter2/activate
+POST http://localhost:4040/element/filter2/activate
 ###
-POST http://localhost:4040/filter2/deactivate
+POST http://localhost:4040/element/filter2/deactivate
 ###
-GET http://localhost:4040/filter2
+GET http://localhost:4040/element/filter2
 
 ### filter1
-POST http://localhost:4040/filter1/change/100
+POST http://localhost:4040/element/filter1/change/100
 ###
-GET http://localhost:4040/filter1
+GET http://localhost:4040/element/filter1
 
 ### combination
-POST http://localhost:4040/combination/trigger
+POST http://localhost:4040/element/combination/trigger
+###
+GET http://localhost:4040/element/combination
+
+### memory
+POST http://localhost:4040/element/memory/change/0
+###
+POST http://localhost:4040/element/memory/change/1
+###
+GET http://localhost:4040/element/memory
