@@ -28,7 +28,7 @@ pub enum Event {
     MidiInMessage(Id, MidiMessage),
     MidiOutMessages(Id, String, Vec<MidiMessage>, bool),
     TermKey(KeyCombination),
-    RestRequest(Id, Box<Option<Event>>, Sender<Option<String>>),
+    RestResponse(Id, Sender<Option<String>>),
 }
 
 #[derive(Clone)]

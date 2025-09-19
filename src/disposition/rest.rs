@@ -58,23 +58,19 @@ impl RestHandler {
 
     pub fn process(&mut self, disposition: &mut Disposition, event: &Event) {
         match event {
-            Event::RestRequest(id, event, result) => {
-                if let Some(event) = event.as_ref().as_ref() {
-                    self.events.send(event.clone());
-                }
-    
+            Event::RestResponse(id, result) => {
                 let data = to_response_data(disposition, &id);
                 result.send(data).unwrap();
             }
             Event::Modified(id) => {
-                let read = match to_response_data(disposition, &id) {
+                let data = match to_response_data(disposition, &id) {
                     Some(read) => read,
                     None => return,
                 };
 
                 debug!("sending to websocket clients");
                 self.clients.lock().unwrap().retain_mut(|client| {
-                    match client.send_text(&read) {
+                    match client.send_text(&data) {
                         Ok(_) => {
                             debug!("modification ${} sent to websocket client '{}'", id, client.id);
                             true
@@ -181,7 +177,7 @@ fn post_binding(events: &Events, caps: Captures) -> Response {
 fn get_element(events: &Events, caps: Captures) -> Response{
     let id: Id = caps[1].into();
 
-    send_and_receive(&events, id, None)
+    respond(&events, id)
 }
 
 fn post_element(events: &Events, caps: Captures) -> Response {
@@ -202,13 +198,15 @@ fn post_element(events: &Events, caps: Captures) -> Response {
             return Response::empty_400();
         },
     };
-    send_and_receive(&events, id, Some(event))
+    events.send(event);
+    
+    respond(&events, id)
 }
 
-fn send_and_receive(events: &Events, id: Id, event: Option<Event>) -> Response {
+fn respond(events: &Events, id: Id) -> Response {
     let (sender, receiver) = bounded(1);
 
-    events.send(Event::RestRequest(id, Box::new(event), sender));
+    events.send(Event::RestResponse(id, sender));
 
     match receiver.recv_timeout(Duration::from_secs(5)) {
         Ok(Some(result)) => Response::text(result),
