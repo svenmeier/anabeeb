@@ -113,7 +113,7 @@
     }
 
     function onError(error) {
-        const element = document.getElementById('.errors');
+        const element = document.getElementById('errors');
         if (element) {
             element.style.display = 'block';
         }
