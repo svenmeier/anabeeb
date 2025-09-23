@@ -70,10 +70,12 @@ struct ChoicesCompleter {
 }
 impl Completion for ChoicesCompleter {
     fn get(&self, input: &str) -> Option<String> {
+        let trimmed  = input.trim();
+        
         let matches = self.choices
             .iter()
             .filter(|choice| {
-                choice.starts_with(input)
+                choice.starts_with(trimmed)
             })
             .map(|id| id.to_string())
             .collect::<Vec<String>>();

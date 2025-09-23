@@ -4,13 +4,16 @@ use fluidsynth::synth::{Synth};
 use log::{debug, error, info};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use crate::disposition::general::{Disposition, Element, Id};
+use crate::disposition::{Disposition, Element, Id};
 use crate::disposition::midi::MidiMessage;
 use crate::fluidsynth::{send, synth_init_logging};
 use crate::io::combine_paths;
 use crate::midi::channel_pool::ChannelPool;
 use crate::processor::{Event, Events};
 
+/**
+ Forwards all Midi out messages to a Fluidsynth instance.
+*/
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct FluidsynthSound {
     #[serde(default = "default_soundfont")]

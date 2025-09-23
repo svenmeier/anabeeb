@@ -1,7 +1,7 @@
-use crate::disposition::general::Disposition;
-use crate::disposition::general::Element::{MidiConsole, MidiKeyboard, MidiSound, RestConsole};
+use crate::disposition::Element::{MidiConsole, MidiKeyboard, MidiSound, RestConsole};
 use crate::midi::{get_input_ports, get_output_ports};
 use crate::{print_info, read_line};
+use crate::disposition::Disposition;
 use crate::processor::Processor;
 
 pub fn setup(disposition: &mut Disposition, processor: &Processor) -> Result<(), Box<dyn std::error::Error>> {

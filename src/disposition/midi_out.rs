@@ -6,7 +6,7 @@ use log::{debug, error, info, warn};
 use midir::{MidiOutput, MidiOutputConnection};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use crate::disposition::general::{Disposition, Element, Id};
+use crate::disposition::{Disposition, Element, Id};
 use crate::disposition::midi::{MidiSwitchBinding, MidiContinuousBinding, to_regex, MidiMessage};
 use crate::midi::{get_output_ports, set_midi_channel, set_wildcard};
 use crate::{print_error, print_info};
@@ -82,6 +82,9 @@ pub struct MidiRank {
     pub _pressed_key_count: u8,
 }
 
+/**
+ Forwards all MIDI out messages to an arbitrary MIDI device.
+*/
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct MidiSound {
     #[serde(skip_serializing_if = "Option::is_none")]

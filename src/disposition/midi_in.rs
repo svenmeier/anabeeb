@@ -7,7 +7,7 @@ use log::{debug, info, warn};
 use midir::{MidiInput, MidiInputConnection};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use crate::disposition::general::{Disposition, Element, Id};
+use crate::disposition::{Disposition, Element, Id};
 use crate::midi::{get_input_ports, get_wildcard};
 use crate::{print_error, print_info};
 use crate::disposition::midi::{to_regex, MidiContinuousBinding, MidiKeyboardBinding, MidiMessage, MidiMomentaryBinding, MidiSwitchBinding};

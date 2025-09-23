@@ -1,9 +1,10 @@
 use std::process::exit;
 use crokey::KeyCombination;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use crate::disposition::general::{Disposition, Element, GeneralHandler, Id};
+use crate::disposition::general::{GeneralHandler};
 use crate::disposition::rest::RestHandler;
 use crate::{print_error, print_info, Args};
+use crate::disposition::{Disposition, Element, Id};
 use crate::disposition::fluidsynth::FluidsynthHandler;
 use crate::disposition::midi::MidiMessage;
 use crate::disposition::midi_in::MidiInHandler;

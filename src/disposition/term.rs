@@ -4,7 +4,7 @@ use crokey::crossterm::event::{read};
 use crokey::{key, KeyCombination};
 use log::{debug};
 use schemars::JsonSchema;
-use crate::disposition::general::{Disposition, Element, Id};
+use crate::disposition::{Disposition, Element, Id};
 use crate::{print_error, print_info};
 use crate::console::{raw_mode, read_choice};
 use crate::processor::{Event, Events};

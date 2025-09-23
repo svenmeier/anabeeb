@@ -2,7 +2,8 @@ use std::error::Error;
 use std::fs::{create_dir_all, File};
 use std::io::Write;
 use schemars::schema_for;
-use anabeeb::disposition::general::{Disposition, MemoryState};
+use anabeeb::disposition::{Disposition};
+use anabeeb::disposition::general::MemoryState;
 
 #[test]
 fn generate_disposition() -> Result<(), Box<dyn Error>> {

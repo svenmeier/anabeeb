@@ -5,7 +5,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use serde_json::Value;
 use serde_json::Value::Object;
-use crate::disposition::general::{Disposition, MemoryState};
+use crate::disposition::Disposition;
+use crate::disposition::general::{MemoryState};
 
 pub fn write_disposition(disposition: &Disposition) -> Result<(), Box<dyn Error>> {
     let path = disposition._path.clone().ok_or("no file specified")?;

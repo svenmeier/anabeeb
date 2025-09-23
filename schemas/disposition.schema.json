@@ -307,6 +307,7 @@
       }
     },
     "Captor": {
+      "description": "When activated, the next triggered combination will capture instead of recall its state.",
       "type": "object",
       "properties": {
         "active": {

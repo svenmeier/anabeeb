@@ -7,7 +7,7 @@ use log::{debug, error, info};
 use regex::{Captures, Regex};
 use rouille::{websocket, Request, Response, Server};
 use schemars::JsonSchema;
-use crate::disposition::general::{Disposition, Element, Id};
+use crate::disposition::{Disposition, Element, Id};
 use crate::processor::{Event, Events};
 use std::time::Duration;
 use crate::{print_error, print_info};

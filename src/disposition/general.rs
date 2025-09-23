@@ -1,89 +1,18 @@
 use std::collections::{BTreeMap, HashMap};
-use std::fmt::{Display, Formatter};
-use crokey::KeyCombination;
 use serde::{Deserialize, Serialize};
 use log::{debug, error, info, warn};
 use schemars::JsonSchema;
-use crate::disposition::fluidsynth::FluidsynthSound;
-use crate::disposition::rest::{RestConsole};
-use crate::disposition::term::{TermMomentaryBinding, TermConsole, TermSwitchBinding, TermContinuousBinding};
+use crate::disposition::term::{TermMomentaryBinding, TermSwitchBinding, TermContinuousBinding};
 use crate::io::{combine_paths, read_memory};
 use crate::disposition::general::CombinationCapture::{Active, Value};
-use crate::disposition::midi::{MidiMomentaryBinding, MidiSwitchBinding, MidiContinuousBinding, MidiMessage};
-use crate::disposition::midi_in::{MidiConsole, MidiKeyboard};
-use crate::disposition::midi_out::{MidiAction, MidiRange, MidiRank, MidiSound};
+use crate::disposition::{Binding, Disposition, Element, Id};
+use crate::disposition::midi::{MidiMomentaryBinding, MidiSwitchBinding, MidiContinuousBinding};
 use crate::print_info;
 use crate::processor::{key_press_dispatch, Event, Events};
 
-#[derive(Serialize, Deserialize,JsonSchema)]
-pub struct Disposition {
-    #[serde(rename = "$schema", skip_serializing_if = "Option::is_none")]
-    pub schema: Option<String>,
-
-    pub elements: BTreeMap<Id, Element>,
-
-    #[serde(skip)]
-    pub _path: Option<String>,
-    
-    #[serde(skip)]
-    pub _binding: Option<Binding>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema)]
-pub struct Id(
-    #[schemars(regex(pattern = r"^\S+$"))]
-    pub String
-);
-impl Display for Id {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-impl From<String> for Id {
-    fn from(s: String) -> Self {
-        Id(s.trim().into())
-    }
-}
-impl From<&str> for Id {
-    fn from(s: &str) -> Self {
-        Id(s.to_string())
-    }
-}
-
-pub struct Binding {
-    pub id: Id,
-    pub messages: Vec<MidiMessage>,
-    pub keys: Vec<KeyCombination>,
-}
-impl Binding {
-    pub fn new(id: Id) -> Self {
-        Self {
-            id,
-            messages: Vec::new(),
-            keys: Vec::new(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize,JsonSchema)]
-#[serde(tag = "type")]
-pub enum Element {
-    Coupler(Coupler),
-    Captor(Captor),
-    Combination(Combination),
-    Roller(Roller),
-    Memory(Memory),
-    RestConsole(RestConsole),
-    TermConsole(TermConsole),
-    MidiConsole(MidiConsole),
-    MidiKeyboard(MidiKeyboard),
-    MidiRank(MidiRank),
-    MidiRange(MidiRange),
-    MidiAction(MidiAction),
-    MidiSound(MidiSound),
-    FluidsynthSound(FluidsynthSound),
-}
-
+/**
+ When activated, forwards all key presses to referenced elements.
+*/
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Coupler {
     #[serde(default)]
@@ -109,6 +38,9 @@ pub struct Coupler {
     _down_keys: HashMap<u8, u8>
 }
 
+/**
+ When activated, the next triggered combination will record its state rather than recalling it.
+*/
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Captor {
     #[serde(default)]
@@ -124,6 +56,31 @@ pub struct Captor {
     pub term_binding: Option<TermSwitchBinding>,
 }
 
+/**
+When triggered, recalls the state of all references elements.
+*/
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Combination {
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_in_binding: Option<MidiMomentaryBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub midi_out_binding: Option<MidiMomentaryBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub term_binding: Option<TermMomentaryBinding>,
+
+    #[serde(default)]
+    pub references: Vec<Id>,
+
+    #[serde(default)]
+    pub state: CombinationState,
+}
+
+/**
+ When its value changes, stores the state of referenced combinations in a matching level. 
+*/
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Memory {
     #[serde(default)]
@@ -154,9 +111,8 @@ pub struct Memory {
 }
 
 /**
- A roller progresses through the referenced elements based on its current value,
- activating the current element while deactivating the previous element,
- or recalling the current element in case of a referenced combination.
+ When its value changes, the element matching the previous value is deactivated,
+ and the element matching the new value is activated (or triggered, if it is a combination).
 */
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Roller {
@@ -201,8 +157,6 @@ impl MemoryState {
     }
 }
 
-pub type CombinationState = BTreeMap<Id, CombinationCapture>;
-
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]
 pub struct MemoryLevel {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -212,24 +166,7 @@ pub struct MemoryLevel {
     pub references: BTreeMap<Id, CombinationState>,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct Combination {
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding: Option<MidiMomentaryBinding>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_out_binding: Option<MidiMomentaryBinding>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub term_binding: Option<TermMomentaryBinding>,
-
-    #[serde(default)]
-    pub references: Vec<Id>,
-    
-    #[serde(default)]
-    pub state: CombinationState,
-}
+pub type CombinationState = BTreeMap<Id, CombinationCapture>;
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
