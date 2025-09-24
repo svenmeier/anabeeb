@@ -18,7 +18,7 @@ set EXAMPLES="examples"
 set SCHEMAS="schemas"
 set JSON="*.json"
 set DLLS="target\fluidsynth\bin\*.dll"
-set TEMP="target\anabeeb-windows"
+set TEMP="target\anabeeb"
 set ZIP="target\anabeeb-%VERSION%-windows.zip"
 
 if exist %TEMP% rmdir /s /q %TEMP%
@@ -30,7 +30,7 @@ xcopy /E /I /Y "%SCHEMAS%" "%TEMP%\%SCHEMAS%\" >nul
 xcopy /E /I /Y "%DLLS%" "%TEMP%\" >nul
 
 if exist "%ZIP%" del "%ZIP%"
-tar -caf "%ZIP%" -C "target" "anabeeb-windows"
+tar -caf "%ZIP%" -C "target" "anabeeb"
 rmdir /s /q %TEMP%
 
 echo ✅ Windows release created: %ZIP%
