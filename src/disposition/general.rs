@@ -8,7 +8,7 @@ use crate::disposition::general::CombinationCapture::{Active, Value};
 use crate::disposition::{Binding, Disposition, Element, Id};
 use crate::disposition::midi::{MidiMomentaryBinding, MidiSwitchBinding, MidiContinuousBinding};
 use crate::print_info;
-use crate::processor::{key_press_dispatch, Event, Events};
+use crate::processor::{key_press_dispatch, key_release_dispatch, Event, Events};
 
 /**
  When activated, forwards all key presses to referenced elements.
@@ -215,8 +215,11 @@ impl GeneralHandler {
             Event::Change(id, value) => {
                 self.change(disposition, id.clone(), value.clone());
             },
-            Event::KeyPress(id, key, down) => {
-                self.press_key(disposition, id.clone(), *key, *down);
+            Event::KeyPress(id, key) => {
+                self.press_key(disposition, id.clone(), *key);
+            },
+            Event::KeyRelease(id, key) => {
+                self.release_key(disposition, id.clone(), *key);
             },
             Event::Trigger(id) => {
                 self.trigger(disposition, id.clone());
@@ -292,7 +295,11 @@ impl GeneralHandler {
                     let references = coupler.references.clone();
                     let transpose = coupler.transpose.clone();
                     for key in keys {
-                        key_press_dispatch(&self.events, &references, coupler_transpose(key, transpose), active);
+                        if active {
+                            key_press_dispatch(&self.events, &references, coupler_transpose(key, transpose));
+                        } else {
+                            key_release_dispatch(&self.events, &references, coupler_transpose(key, transpose));
+                        }
                     }
                     true
                 } else {
@@ -456,35 +463,41 @@ impl GeneralHandler {
         }
     }
 
-    fn press_key(&self, disposition: &mut Disposition, id: Id, key: u8, down: bool) {
+    fn press_key(&self, disposition: &mut Disposition, id: Id, key: u8) {
         match disposition.elements.get_mut(&id) {
             Some(Element::Coupler(coupler)) => {
                 let transpose = coupler.transpose;
-                if down {
-                    if let Some(value) = coupler._down_keys.get_mut(&key) {
-                        *value += 1;
-                    } else {
-                        coupler._down_keys.insert(key, 1);
-                        debug!("coupler ${} key {} true", id, key);
-                        if coupler.active {
-                            key_press_dispatch(&self.events, &coupler.references, coupler_transpose(key, transpose), true);
-                        }
-                    }
+                if let Some(value) = coupler._down_keys.get_mut(&key) {
+                    *value += 1;
                 } else {
-                    if let Some(value) = coupler._down_keys.get_mut(&key) {
-                        if *value == 0 {
-                            // ignore
-                            return
-                        }
-                        *value -= 1;
+                    coupler._down_keys.insert(key, 1);
+                    debug!("coupler ${} key {} true", id, key);
+                    if coupler.active {
+                        key_press_dispatch(&self.events, &coupler.references, coupler_transpose(key, transpose));
+                    }
+                }
+            },
+            _ => {},
+        };
+    }
 
-                        if *value == 0 {
-                            coupler._down_keys.remove(&key);
-                            debug!("coupler ${} key {} false", id, key);
+    fn release_key(&self, disposition: &mut Disposition, id: Id, key: u8) {
+        match disposition.elements.get_mut(&id) {
+            Some(Element::Coupler(coupler)) => {
+                let transpose = coupler.transpose;
+                if let Some(value) = coupler._down_keys.get_mut(&key) {
+                    if *value == 0 {
+                        // ignore
+                        return
+                    }
+                    *value -= 1;
 
-                            if coupler.active {
-                                key_press_dispatch(&self.events, &coupler.references, coupler_transpose(key, transpose), false);
-                            }
+                    if *value == 0 {
+                        coupler._down_keys.remove(&key);
+                        debug!("coupler ${} key {} false", id, key);
+
+                        if coupler.active {
+                            key_release_dispatch(&self.events, &coupler.references, coupler_transpose(key, transpose));
                         }
                     }
                 }

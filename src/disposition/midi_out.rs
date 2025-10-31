@@ -137,8 +137,11 @@ impl MidiOutHandler {
             Event::Change(id, value) => {
                 self.change(disposition, id.clone(), value.clone());
             },
-            Event::KeyPress(id, key, down) => {
-                self.press_key(disposition, id.clone(), *key, *down);
+            Event::KeyPress(id, key) => {
+                self.press_key(disposition, id.clone(), *key);
+            },
+            Event::KeyRelease(id, key) => {
+                self.release_key(disposition, id.clone(), *key);
             },
             Event::MidiOutMessages(id, channel, messages, release) => {
                 self.send_messages(disposition, id.clone(), channel, messages, *release);
@@ -332,23 +335,16 @@ impl MidiOutHandler {
         }
     }
 
-    fn press_key(&self, disposition: &mut Disposition, id: Id, key: u8, down: bool) {
+    fn press_key(&self, disposition: &mut Disposition, id: Id, key: u8) {
         match disposition.elements.get_mut(&id) {
             Some(Element::MidiRank(rank)) => {
-                debug!("midi rank ${} key {} {}", id, key, down);
-                if down { rank._pressed_key_count += 1 } else { rank._pressed_key_count -= 1 };
+                debug!("midi rank ${} press key {}", id, key);
+                rank._pressed_key_count += 1;
 
-                let pressed_keys = rank._pressed_key_count;
-
-                let message = if down { vec![144, key, 127] } else { vec![128, key, 0] };
-                let messages = match (down, pressed_keys) {
-                    (true, 1) => {
+                let message = vec![144, key, 127];
+                let messages = match rank._pressed_key_count {
+                    1 => {
                         let mut messages = rank.acquire.clone();
-                        messages.push(message);
-                        messages
-                    },
-                    (false, 0) => {
-                        let mut messages = rank.release.clone();
                         messages.push(message);
                         messages
                     },
@@ -357,7 +353,31 @@ impl MidiOutHandler {
                     },
                 };
 
-                midi_out_dispatch(&self.events, &rank.references, &id.0, &messages, pressed_keys == 0);
+                midi_out_dispatch(&self.events, &rank.references, &id.0, &messages, false);
+            }
+            _ => {},
+        }
+    }
+
+    fn release_key(&self, disposition: &mut Disposition, id: Id, key: u8) {
+        match disposition.elements.get_mut(&id) {
+            Some(Element::MidiRank(rank)) => {
+                debug!("midi rank ${} release key {}", id, key);
+                rank._pressed_key_count -= 1;
+
+                let message = vec![128, key, 0];
+                let (messages, release) = match rank._pressed_key_count {
+                    0 => {
+                        let mut messages = rank.release.clone();
+                        messages.push(message);
+                        (messages, true)
+                    },
+                    _ => {
+                        (vec![message], false)
+                    },
+                };
+
+                midi_out_dispatch(&self.events, &rank.references, &id.0, &messages, release);
             }
             _ => {},
         }

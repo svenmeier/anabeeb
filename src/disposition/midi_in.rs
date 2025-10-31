@@ -12,7 +12,7 @@ use crate::midi::{get_input_ports, get_wildcard};
 use crate::{print_error, print_info};
 use crate::disposition::midi::{to_regex, MidiContinuousBinding, MidiKeyboardBinding, MidiMessage, MidiMomentaryBinding, MidiSwitchBinding};
 use crate::disposition::midi_out::SharedOutput;
-use crate::processor::{key_press_dispatch, Event, Events};
+use crate::processor::{key_press_dispatch, key_release_dispatch, Event, Events};
 
 struct SharedInput {
     _connection: MidiInputConnection<()>,
@@ -97,14 +97,14 @@ impl MidiInHandler {
                             if let Some((_, key)) = get_wildcard(&message, &key_down) {
                                 if keyboard._pressed_keys.insert(key) {
                                     debug!("midi keyboard ${} key {} pressed", id, key);
-                                    key_press_dispatch(&self.events, &keyboard.references, key, true);
+                                    key_press_dispatch(&self.events, &keyboard.references, key);
                                 } else {
                                     warn!("midi keyboard ${} key {} already pressed", id, key)
                                 }
                             } else if let Some((_, key)) = get_wildcard(&message, &key_up) {
                                 if keyboard._pressed_keys.remove(&key) {
                                     debug!("midi keyboard ${} key {} released", id, key);
-                                    key_press_dispatch(&self.events, &keyboard.references, key, false);
+                                    key_release_dispatch(&self.events, &keyboard.references, key);
                                 } else {
                                     warn!("midi keyboard ${} key {} was not pressed", id, key)
                                 }
@@ -252,7 +252,7 @@ impl MidiInHandler {
                 for key in keys {
                     panicked = true;
                     info!("midi panic ${} stuck key {}", id, key);
-                    key_press_dispatch(&self.events, &keyboard.references, key, false);
+                    key_release_dispatch(&self.events, &keyboard.references, key);
                 }
             }
         }

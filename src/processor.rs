@@ -15,7 +15,8 @@ use crate::setup::setup;
 
 #[derive(Clone)]
 pub enum Event {
-    KeyPress(Id, u8, bool),
+    KeyPress(Id, u8),
+    KeyRelease(Id, u8),
     Activate(Id, bool),
     Change(Id, u32),
     Trigger(Id),
@@ -177,9 +178,15 @@ impl Processor {
     }
 }
 
-pub fn key_press_dispatch(events: &Events, ids: &Vec<Id>, key: u8, down: bool) {
+pub fn key_press_dispatch(events: &Events, ids: &Vec<Id>, key: u8) {
     for id in ids {
-        events.send_priority(Event::KeyPress(id.clone(), key, down));
+        events.send_priority(Event::KeyPress(id.clone(), key));
+    }
+}
+
+pub fn key_release_dispatch(events: &Events, ids: &Vec<Id>, key: u8) {
+    for id in ids {
+        events.send_priority(Event::KeyRelease(id.clone(), key));
     }
 }
 
