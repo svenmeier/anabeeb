@@ -156,7 +156,7 @@ impl MidiInHandler {
                 Some(Element::Combination(combination)) => {
                     if let Some(binding) = &mut combination.midi_in_binding {
                         if binding.trigger == *message {
-                            self.events.send(Event::Trigger(id));
+                            self.events.append(Event::Trigger(id));
                         }
                     }
                 },
@@ -171,9 +171,9 @@ impl MidiInHandler {
     fn match_switch_binding(&self, id: Id, message: &MidiMessage, binding: &Option<MidiSwitchBinding>) {
         if let Some(binding) = binding {
             if binding.activate == *message {
-                self.events.send(Event::Activate(id, true));
+                self.events.append(Event::Activate(id, true));
             } else if binding.deactivate == *message {
-                self.events.send(Event::Activate(id, false));
+                self.events.append(Event::Activate(id, false));
             }
         }
     }
@@ -184,7 +184,7 @@ impl MidiInHandler {
                 let delta = max.saturating_sub(min);
                 let value = min.saturating_add((value as u32).saturating_mul(delta) / 127);
 
-                self.events.send(Event::Change(id, value));
+                self.events.append(Event::Change(id, value));
             }
         }
     }
@@ -224,7 +224,7 @@ impl MidiInHandler {
                                                                   debug!("midi in message {:?}", message);
 
                                                                   for id in ids_lock.iter() {
-                                                                      sender_clone.send(Event::MidiInMessage(id.clone(), message.to_vec()));
+                                                                      sender_clone.append(Event::MidiInMessage(id.clone(), message.to_vec()));
                                                                   }
                                                               },
                                                               (),

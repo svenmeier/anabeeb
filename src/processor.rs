@@ -1,4 +1,6 @@
+use std::collections::BinaryHeap;
 use std::process::exit;
+use std::time::{Duration, Instant};
 use crokey::KeyCombination;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use crate::disposition::general::{GeneralHandler};
@@ -33,26 +35,51 @@ pub enum Event {
     RestResponse(Id, Sender<Option<String>>),
 }
 
+struct PendingEvent {
+    when: Instant,
+    event: Event,
+}
+impl Eq for PendingEvent {}
+impl PartialEq for PendingEvent {
+    fn eq(&self, other: &Self) -> bool {
+        self.when == other.when
+    }
+}
+impl Ord for PendingEvent {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Reverse so earliest (smallest Instant) is "greater"
+        other.when.cmp(&self.when)
+    }
+}
+impl PartialOrd for PendingEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[derive(Clone)]
 pub struct Events{
-    sender: Sender<Event>,
-    priority_sender: Sender<Event>,
+    sender: Sender<PendingEvent>,
 }
+
 impl Events {
-    pub fn send(&self, event: Event) {
-        self.sender.send(event).unwrap();
+    pub fn append(&self, event: Event) {
+        self.sender.send(PendingEvent { when: Instant::now(), event}).unwrap();
     }
 
-    pub fn send_priority(&self, event: Event) {
-        self.priority_sender.send(event).unwrap();
+    pub fn prepend(&self, event: Event) {
+        self.sender.send(PendingEvent { when: Instant::now() - Duration::from_secs(60000), event}).unwrap();
+    }
+
+    pub fn delay(&self, event: Event, delay: Duration) {
+        self.sender.send(PendingEvent { when: Instant::now() + delay, event}).unwrap();
     }
 }
-
 
 pub struct Processor {
     args: Args,
-    receiver: Receiver<Event>,
-    priority_receiver: Receiver<Event>,
+    receiver: Receiver<PendingEvent>,
+    pending_events: BinaryHeap<PendingEvent>,
     midi_in_handler: MidiInHandler,
     midi_out_handler: MidiOutHandler,
     rest_handler: RestHandler,
@@ -63,14 +90,13 @@ pub struct Processor {
 }
 impl Processor {
     pub fn new(args: Args) -> Self {
-        let (sender, receiver) = unbounded::<Event>();
-        let (priority_sender, priority_receiver) = unbounded::<Event>();
-        let events = Events{ sender, priority_sender };
+        let (sender, receiver) = unbounded::<PendingEvent>();
+        let events = Events{ sender };
 
         Self {
             args,
             receiver,
-            priority_receiver,
+            pending_events: BinaryHeap::new(),
             midi_in_handler: MidiInHandler::new(events.clone()),
             midi_out_handler: MidiOutHandler::new(events.clone()),
             rest_handler: RestHandler::new(events.clone()),
@@ -82,7 +108,6 @@ impl Processor {
     }
 
     pub fn init(&mut self, disposition: &mut Disposition) {
-
         if self.args.setup {
             match setup(disposition, &self) {
                 Ok(()) => print_info!("setup completed"),
@@ -103,32 +128,45 @@ impl Processor {
 
     pub fn process(&mut self, disposition: &mut Disposition) {
         loop {
-            let mut event = self.receiver.recv().unwrap();
+            // drain all received events
+            while let Ok(ev) = self.receiver.try_recv() {
+                self.pending_events.push(ev);
+            }
 
-            loop {
-                match event {
-                    Event::Error(_, _) => self.errors.push(event.clone()),
-                    Event::Save => {
-                        self.save(disposition);
-                    },
-                    Event::Quit => {
-                        self.quit(disposition);
-                    },
-                    _ => {
-                        self.midi_in_handler.process(disposition, &event);
-                        self.midi_out_handler.process(disposition, &event);
-                        self.rest_handler.process(disposition, &event);
-                        self.term_handler.process(disposition, &event);
-                        self.fluidsynth_handler.process(disposition, &event);
-                        self.general_handler.process(disposition, &event);
-                    },
-                };
+            // timeout until next pending
+            let timeout = match self.pending_events.peek() {
+                Some(next) => {
+                    let now = Instant::now();
+                    if next.when > now {
+                        next.when - now
+                    } else {
+                        Duration::from_secs(0) // already due
+                    }
+                }
+                None => Duration::MAX, // wait indefinitely for new events
+            };
+            match self.receiver.recv_timeout(timeout) {
+                Ok(ev) => {
+                    // new event interrupted wait
+                    self.pending_events.push(ev);
+                    continue;
+                }
+                Err(_) => {
+                }
+            }
 
-                let priority_event = self.priority_receiver.try_recv();
-                if let Ok(priority_event) = priority_event {
-                    event = priority_event;
-                } else {
-                    break;
+            let event = self.pending_events.pop().unwrap().event;
+            match event {
+                Event::Error(_, _) => self.errors.push(event.clone()),
+                Event::Save => self.save(disposition),
+                Event::Quit => self.quit(disposition),
+                _ => {
+                    self.midi_in_handler.process(disposition, &event);
+                    self.midi_out_handler.process(disposition, &event);
+                    self.rest_handler.process(disposition, &event);
+                    self.term_handler.process(disposition, &event);
+                    self.fluidsynth_handler.process(disposition, &event);
+                    self.general_handler.process(disposition, &event);
                 }
             }
         }
@@ -180,18 +218,18 @@ impl Processor {
 
 pub fn key_press_dispatch(events: &Events, ids: &Vec<Id>, key: u8) {
     for id in ids {
-        events.send_priority(Event::KeyPress(id.clone(), key));
+        events.prepend(Event::KeyPress(id.clone(), key));
     }
 }
 
 pub fn key_release_dispatch(events: &Events, ids: &Vec<Id>, key: u8) {
     for id in ids {
-        events.send_priority(Event::KeyRelease(id.clone(), key));
+        events.prepend(Event::KeyRelease(id.clone(), key));
     }
 }
 
 pub fn midi_out_dispatch(events: &Events, ids: &Vec<Id>, channel: &String, messages: &Vec<MidiMessage>, release: bool) {
     for id in ids {
-        events.send_priority(Event::MidiOutMessages(id.clone(), channel.clone(), messages.clone(), release));
+        events.prepend(Event::MidiOutMessages(id.clone(), channel.clone(), messages.clone(), release));
     }
 }

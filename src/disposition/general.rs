@@ -270,7 +270,7 @@ impl GeneralHandler {
         };
 
         if modified {
-            self.events.send(Event::Modified(id.clone()));
+            self.events.append(Event::Modified(id.clone()));
         }
     }
 
@@ -310,7 +310,7 @@ impl GeneralHandler {
         };
 
         if modified {
-            self.events.send(Event::Modified(id.clone()));
+            self.events.append(Event::Modified(id.clone()));
         }
     }
 
@@ -324,7 +324,7 @@ impl GeneralHandler {
             None
         });
         if let Some(captor_id) = captor_id {
-            self.events.send_priority(Event::Activate(captor_id.clone(), false));
+            self.events.prepend(Event::Activate(captor_id.clone(), false));
             self.combination_capture(disposition, id.clone());
             return;
         }
@@ -342,12 +342,12 @@ impl GeneralHandler {
                     match disposition.elements.get(&id) {
                         Some(Element::Coupler(_) | Element::MidiAction(_)) => {
                             if let Some(Active(active)) = state.get(&id) {
-                                self.events.send_priority(Event::Activate(id.clone(), active.clone()));
+                                self.events.prepend(Event::Activate(id.clone(), active.clone()));
                             }
                         },
                         Some(Element::Roller(_) | Element::MidiRange(_)) => {
                             if let Some(Value(value)) = state.get(&id) {
-                                self.events.send_priority(Event::Change(id.clone(), value.clone()));
+                                self.events.prepend(Event::Change(id.clone(), value.clone()));
                             }
                         },
                         _ => {},
@@ -405,7 +405,7 @@ impl GeneralHandler {
                 };
 
                 if let Some(event) = event {
-                    self.events.send_priority(event);
+                    self.events.prepend(event);
                 }
             }
         }
@@ -418,7 +418,7 @@ impl GeneralHandler {
                 };
 
                 if let Some(event) = event {
-                    self.events.send_priority(event);
+                    self.events.prepend(event);
                 }
             }
         }

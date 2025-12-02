@@ -218,7 +218,7 @@ impl MidiOutHandler {
         };
 
         if modified {
-            self.events.send(Event::Modified(id.clone()));
+            self.events.append(Event::Modified(id.clone()));
         }
     }
 
@@ -243,7 +243,7 @@ impl MidiOutHandler {
         };
 
         if modified {
-            self.events.send(Event::Modified(id.clone()));
+            self.events.append(Event::Modified(id.clone()));
         }
     }
 

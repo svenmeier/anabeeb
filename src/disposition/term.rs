@@ -76,14 +76,14 @@ impl TermHandler {
 
                 match key {
                     key!(ctrl-p) => {
-                        self.events.send(Event::MidiPanic);
+                        self.events.append(Event::MidiPanic);
                     },
                     key!(ctrl-s) => {
-                        self.events.send(Event::Save);
+                        self.events.append(Event::Save);
                     },
                     key!(ctrl-q) => {
                         raw_mode(false);
-                        self.events.send(Event::Quit);
+                        self.events.append(Event::Quit);
                     },
                     _ => {},
                 }
@@ -116,7 +116,7 @@ impl TermHandler {
                 Some(Element::Combination(combination)) => {
                     if let Some(binding) = &mut combination.term_binding {
                         if *key == binding.trigger {
-                            self.events.send(Event::Trigger(id.clone()));
+                            self.events.append(Event::Trigger(id.clone()));
                         }
                     }
                 },
@@ -128,9 +128,9 @@ impl TermHandler {
     fn match_switch_binding(&self, id: Id, active: bool, key: &KeyCombination, binding: &Option<TermSwitchBinding>) {
         if let Some(binding) = binding {
             if !active && *key == binding.activate {
-                self.events.send(Event::Activate(id.clone(), true));
+                self.events.append(Event::Activate(id.clone(), true));
             } else if active && *key == binding.deactivate {
-                self.events.send(Event::Activate(id.clone(), false));
+                self.events.append(Event::Activate(id.clone(), false));
             }
         }
     }
@@ -139,10 +139,10 @@ impl TermHandler {
         if let Some(binding) = binding {
             if *key == binding.decrease {
                 let value = value.saturating_sub(binding.delta).clamp(min, max);
-                self.events.send(Event::Change(id.clone(), value));
+                self.events.append(Event::Change(id.clone(), value));
             } else if *key == binding.increase {
                 let value = value.saturating_add(binding.delta).clamp(min, max);
-                self.events.send(Event::Change(id.clone(), value));
+                self.events.append(Event::Change(id.clone(), value));
             }
         }
     }
@@ -191,7 +191,7 @@ fn read_and_send(events: Events, ids: Vec<Id>) {
                         bind_element(events.clone(), ids.clone()).unwrap();
                         raw_mode(true);
                     } else {
-                        events.send(Event::TermKey(key_combination));
+                        events.append(Event::TermKey(key_combination));
                     }
                 }
             }
@@ -200,7 +200,7 @@ fn read_and_send(events: Events, ids: Vec<Id>) {
 }
 
 fn bind_element(events: Events, ids: Vec<Id>) -> Result<(), Box<dyn std::error::Error>> {
-    events.send(Event::BindingEnd);
+    events.append(Event::BindingEnd);
 
     print_info!("Choose an element (use TAB for completion)");
 
@@ -208,7 +208,7 @@ fn bind_element(events: Events, ids: Vec<Id>) -> Result<(), Box<dyn std::error::
     if !chosen.is_empty() {
         let id: Id = chosen.into();
         if ids.contains(&id) {
-            events.send(Event::BindingStart(id.clone()));
+            events.append(Event::BindingStart(id.clone()));
         } else {
             print_error!("Unknown element ${}", id)
         }

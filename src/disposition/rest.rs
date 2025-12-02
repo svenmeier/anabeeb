@@ -162,10 +162,10 @@ fn post_binding(events: &Events, caps: Captures) -> Response {
 
     match &caps[2] {
         "start" => {
-            events.send(Event::BindingStart(id.clone()));
+            events.append(Event::BindingStart(id.clone()));
         },
         "end" => {
-            events.send(Event::BindingEnd);
+            events.append(Event::BindingEnd);
         }
         _ => {
             return Response::empty_400();
@@ -198,7 +198,7 @@ fn post_element(events: &Events, caps: Captures) -> Response {
             return Response::empty_400();
         },
     };
-    events.send(event);
+    events.append(event);
     
     respond(&events, id)
 }
@@ -206,7 +206,7 @@ fn post_element(events: &Events, caps: Captures) -> Response {
 fn respond(events: &Events, id: Id) -> Response {
     let (sender, receiver) = bounded(1);
 
-    events.send(Event::RestResponse(id, sender));
+    events.append(Event::RestResponse(id, sender));
 
     match receiver.recv_timeout(Duration::from_secs(5)) {
         Ok(Some(result)) => Response::text(result),
