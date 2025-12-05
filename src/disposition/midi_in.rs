@@ -1,7 +1,5 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use log::{debug, info, warn};
 use midir::{MidiInput, MidiInputConnection};
@@ -11,24 +9,11 @@ use crate::disposition::{Disposition, Element, Id};
 use crate::midi::{get_input_ports, get_wildcard};
 use crate::{print_error, print_info};
 use crate::disposition::midi::{to_regex, MidiContinuousBinding, MidiKeyboardBinding, MidiMessage, MidiMomentaryBinding, MidiSwitchBinding};
-use crate::disposition::midi_out::SharedOutput;
 use crate::processor::{key_press_dispatch, key_release_dispatch, Event, Events};
 
 struct SharedInput {
     _connection: MidiInputConnection<()>,
     ids: Arc<Mutex<Vec<Id>>>,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct MidiConsole {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub port: Option<String>,
-
-    #[serde(default)]
-    pub references: Vec<Id>,
-
-    #[serde(skip)]
-    pub _output: Option<Rc<RefCell<SharedOutput>>>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
