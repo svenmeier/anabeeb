@@ -104,7 +104,7 @@ fn start_server(id: Id, port: u16, events: Events, clients: Clients) {
                 } else if request.method() == "POST" {
                     let element_id_event_value = Regex::new(r"^/element/([^/]+)/([^/]+)(/([^/]+))?$").unwrap();
                     if let Some(caps) = element_id_event_value.captures(&path) {
-                        response = post_element(&events, caps);
+                        response = post_modify(&events, caps);
                     } else {
                         let binding_id_command = Regex::new(r"^/binding/([^/]+)/([^/]+)$").unwrap();
                         if let Some(caps) = binding_id_command.captures(&path) {
@@ -180,7 +180,7 @@ fn get_element(events: &Events, caps: Captures) -> Response{
     respond(&events, id)
 }
 
-fn post_element(events: &Events, caps: Captures) -> Response {
+fn post_modify(events: &Events, caps: Captures) -> Response {
     let id: Id = caps[1].into();
 
     let event = match &caps[2] {
