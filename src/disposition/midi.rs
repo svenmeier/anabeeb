@@ -44,9 +44,9 @@ pub struct MidiMomentaryBinding {
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MidiKeyboardBinding {
     #[serde(default)]
-    pub key_down: MidiMessage,
+    pub down: MidiMessage,
     #[serde(default)]
-    pub key_up: MidiMessage,
+    pub up: MidiMessage,
 }
 
 pub fn to_regex(name: &str) -> Result<Regex, Box<dyn Error>> {

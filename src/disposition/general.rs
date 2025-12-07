@@ -22,10 +22,10 @@ pub struct Coupler {
     pub transpose: i8,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding: Option<MidiSwitchBinding>,
+    pub console_in_binding: Option<MidiSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_out_binding: Option<MidiSwitchBinding>,
+    pub console_out_binding: Option<MidiSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub term_binding: Option<TermSwitchBinding>,
@@ -47,10 +47,10 @@ pub struct Captor {
     pub active: bool,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding: Option<MidiSwitchBinding>,
+    pub console_in_binding: Option<MidiSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_out_binding: Option<MidiSwitchBinding>,
+    pub console_out_binding: Option<MidiSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub term_binding: Option<TermSwitchBinding>,
@@ -63,10 +63,10 @@ When triggered, recalls the state of all references elements.
 pub struct Combination {
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding: Option<MidiMomentaryBinding>,
+    pub console_in_binding: Option<MidiMomentaryBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_out_binding: Option<MidiMomentaryBinding>,
+    pub console_out_binding: Option<MidiMomentaryBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub term_binding: Option<TermMomentaryBinding>,
@@ -97,10 +97,10 @@ pub struct Memory {
     pub term_binding: Option<TermContinuousBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding: Option<MidiContinuousBinding>,
+    pub console_in_binding: Option<MidiContinuousBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_out_binding: Option<MidiContinuousBinding>,
+    pub console_out_binding: Option<MidiContinuousBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -127,10 +127,10 @@ pub struct Roller {
     pub term_binding: Option<TermContinuousBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding: Option<MidiContinuousBinding>,
+    pub console_in_binding: Option<MidiContinuousBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_out_binding: Option<MidiContinuousBinding>,
+    pub console_out_binding: Option<MidiContinuousBinding>,
 
     #[serde(default)]
     pub references: Vec<Id>,

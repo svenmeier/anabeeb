@@ -22,7 +22,7 @@ pub struct MidiKeyboard {
     pub port: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding : Option<MidiKeyboardBinding>,
+    pub key_binding: Option<MidiKeyboardBinding>,
 
     #[serde(default)]
     pub references: Vec<Id>,
@@ -75,18 +75,18 @@ impl MidiInHandler {
                             return;
                         }
 
-                        if let Some(binding) = &keyboard.midi_in_binding {
-                            let key_down = binding.key_down.clone();
-                            let key_up = binding.key_up.clone();
+                        if let Some(binding) = &keyboard.key_binding {
+                            let down = binding.down.clone();
+                            let up = binding.up.clone();
 
-                            if let Some((_, key)) = get_wildcard(&message, &key_down) {
+                            if let Some((_, key)) = get_wildcard(&message, &down) {
                                 if keyboard._pressed_keys.insert(key) {
                                     debug!("midi keyboard ${} key {} pressed", id, key);
                                     key_press_dispatch(&self.events, &keyboard.references, key);
                                 } else {
                                     warn!("midi keyboard ${} key {} already pressed", id, key)
                                 }
-                            } else if let Some((_, key)) = get_wildcard(&message, &key_up) {
+                            } else if let Some((_, key)) = get_wildcard(&message, &up) {
                                 if keyboard._pressed_keys.remove(&key) {
                                     debug!("midi keyboard ${} key {} released", id, key);
                                     key_release_dispatch(&self.events, &keyboard.references, key);
@@ -124,22 +124,22 @@ impl MidiInHandler {
         for id in ids {
             match disposition.elements.get_mut(&id) {
                 Some(Element::Coupler(coupler)) => {
-                    self.match_switch_binding(id, &message, &coupler.midi_in_binding);
+                    self.match_switch_binding(id, &message, &coupler.console_in_binding);
                 },
                 Some(Element::Captor(captor)) => {
-                    self.match_switch_binding(id, &message, &captor.midi_in_binding);
+                    self.match_switch_binding(id, &message, &captor.console_in_binding);
                 },
                 Some(Element::MidiAction(action)) => {
-                    self.match_switch_binding(id, &message, &action.midi_in_binding);
+                    self.match_switch_binding(id, &message, &action.console_in_binding);
                 }
                 Some(Element::MidiRange(range)) => {
-                    self.match_continuous_binding(id, range.min, range.max, &message, &range.midi_in_binding);
+                    self.match_continuous_binding(id, range.min, range.max, &message, &range.console_in_binding);
                 },
                 Some(Element::Memory(memory)) => {
-                    self.match_continuous_binding(id, memory.min, memory.max, &message, &memory.midi_in_binding);
+                    self.match_continuous_binding(id, memory.min, memory.max, &message, &memory.console_in_binding);
                 },
                 Some(Element::Combination(combination)) => {
-                    if let Some(binding) = &mut combination.midi_in_binding {
+                    if let Some(binding) = &mut combination.console_in_binding {
                         if binding.trigger == *message {
                             self.events.append(Event::Trigger(id));
                         }
@@ -253,25 +253,25 @@ fn binding_end(disposition: &mut Disposition) {
         if let Some(element) = disposition.elements.get_mut(&binding.id) {
             match element {
                 Element::Coupler(e) => {
-                    e.midi_in_binding = switch_binding(&binding.messages).or(e.midi_in_binding.clone());
+                    e.console_in_binding = switch_binding(&binding.messages).or(e.console_in_binding.clone());
                 }
                 Element::Combination(e) => {
-                    e.midi_in_binding = momentary_binding(&binding.messages).or(e.midi_in_binding.clone());
+                    e.console_in_binding = momentary_binding(&binding.messages).or(e.console_in_binding.clone());
                 }
                 Element::Captor(e) => {
-                    e.midi_in_binding = switch_binding(&binding.messages).or(e.midi_in_binding.clone());
+                    e.console_in_binding = switch_binding(&binding.messages).or(e.console_in_binding.clone());
                 }
                 Element::Memory(e) => {
-                    e.midi_in_binding = continuous_binding(&binding.messages).or(e.midi_in_binding.clone());
+                    e.console_in_binding = continuous_binding(&binding.messages).or(e.console_in_binding.clone());
                 }
                 Element::MidiAction(e) => {
-                    e.midi_in_binding = switch_binding(&binding.messages).or(e.midi_in_binding.clone());
+                    e.console_in_binding = switch_binding(&binding.messages).or(e.console_in_binding.clone());
                 }
                 Element::MidiRange(e) => {
-                    e.midi_in_binding = continuous_binding(&binding.messages).or(e.midi_in_binding.clone());
+                    e.console_in_binding = continuous_binding(&binding.messages).or(e.console_in_binding.clone());
                 }
                 Element::MidiKeyboard(e) => {
-                    e.midi_in_binding = midi_keyboard_binding(&binding.messages).or(e.midi_in_binding.clone());
+                    e.key_binding = keyboard_binding(&binding.messages).or(e.key_binding.clone());
                 }
                 _ => {},
             }
@@ -279,9 +279,9 @@ fn binding_end(disposition: &mut Disposition) {
     }
 }
 
-fn midi_keyboard_binding(messages: &Vec<MidiMessage>) -> Option<MidiKeyboardBinding> {
-    let mut key_down: MidiMessage = Vec::new();
-    let mut key_up: MidiMessage = Vec::new();
+fn keyboard_binding(messages: &Vec<MidiMessage>) -> Option<MidiKeyboardBinding> {
+    let mut down: MidiMessage = Vec::new();
+    let mut up: MidiMessage = Vec::new();
 
     for message in messages {
         if message.len() >= 3 {
@@ -289,19 +289,19 @@ fn midi_keyboard_binding(messages: &Vec<MidiMessage>) -> Option<MidiKeyboardBind
             let channel = message[0] & 0x0F;
             let data = message[2];
             if status == 144 && data > 0 {
-                key_down = vec![144 | channel, 255, 255];
+                down = vec![144 | channel, 255, 255];
             } else if status == 144 && data == 0 {
-                key_up = vec![144 | channel, 255, 0];
+                up = vec![144 | channel, 255, 0];
             } else if status == 128 {
-                key_up = vec![128 | channel, 255, 255];
+                up = vec![128 | channel, 255, 255];
             }
         }
     }
 
-    if key_down.is_empty() || key_up.is_empty() {
+    if down.is_empty() || up.is_empty() {
         return None;
     }
-    Some(MidiKeyboardBinding{ key_down, key_up })
+    Some(MidiKeyboardBinding{ down, up })
 }
 
 fn continuous_binding(messages: &Vec<MidiMessage>) -> Option<MidiContinuousBinding> {

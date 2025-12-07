@@ -33,7 +33,7 @@
     },
     "coupler1": {
       "active": true,
-      "midi_in_binding": {
+      "console_in_binding": {
         "activate": [
           176,
           127,
@@ -45,7 +45,7 @@
           0
         ]
       },
-      "midi_out_binding": {
+      "console_out_binding": {
         "activate": [
           177,
           127,
@@ -71,13 +71,13 @@
     },
     "keyboard1": {
       "port": "^Virtual Keyboard.*$",
-      "midi_in_binding": {
-        "key_down": [
+      "key_binding": {
+        "down": [
           144,
           255,
           255
         ],
-        "key_up": [
+        "up": [
           128,
           255,
           255
@@ -99,14 +99,14 @@
         "decrease": "Hyphen",
         "delta": 5
       },
-      "midi_in_binding": {
+      "console_in_binding": {
         "change": [
           176,
           7,
           255
         ]
       },
-      "midi_out_binding": {
+      "console_out_binding": {
         "change": [
           177,
           7,

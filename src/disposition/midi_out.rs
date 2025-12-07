@@ -33,10 +33,10 @@ pub struct MidiRange {
     pub term_binding: Option<TermContinuousBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding: Option<MidiContinuousBinding>,
+    pub console_in_binding: Option<MidiContinuousBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_out_binding: Option<MidiContinuousBinding>,
+    pub console_out_binding: Option<MidiContinuousBinding>,
 
     #[serde(default)]
     pub references: Vec<Id>,
@@ -58,10 +58,10 @@ pub struct MidiAction {
     pub term_binding: Option<TermSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_in_binding: Option<MidiSwitchBinding>,
+    pub console_in_binding: Option<MidiSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub midi_out_binding: Option<MidiSwitchBinding>,
+    pub console_out_binding: Option<MidiSwitchBinding>,
 
     #[serde(default)]
     pub references: Vec<Id>,
@@ -151,22 +151,22 @@ impl MidiOutHandler {
 
                 match element {
                     Some(Element::Coupler(coupler)) => {
-                        self.send_switch_binding(id, disposition, coupler.active, &coupler.midi_out_binding.clone());
+                        self.send_switch_binding(id, disposition, coupler.active, &coupler.console_out_binding.clone());
                     },
                     Some(Element::Captor(captor)) => {
-                        self.send_switch_binding(id, disposition, captor.active, &captor.midi_out_binding.clone());
+                        self.send_switch_binding(id, disposition, captor.active, &captor.console_out_binding.clone());
                     },
                     Some(Element::MidiAction(action)) => {
-                        self.send_switch_binding(id, disposition, action.active, &action.midi_out_binding.clone());
+                        self.send_switch_binding(id, disposition, action.active, &action.console_out_binding.clone());
                     },
                     Some(Element::MidiRange(range)) => {
-                        self.send_continuous_binding(id, disposition, range.value, range.min, range.max, &range.midi_out_binding.clone());
+                        self.send_continuous_binding(id, disposition, range.value, range.min, range.max, &range.console_out_binding.clone());
                     },
                     Some(Element::Memory(memory)) => {
-                        self.send_continuous_binding(id, disposition, memory.value, memory.min, memory.max, &memory.midi_out_binding.clone());
+                        self.send_continuous_binding(id, disposition, memory.value, memory.min, memory.max, &memory.console_out_binding.clone());
                     },
                     Some(Element::Roller(roller)) => {
-                        self.send_continuous_binding(id, disposition, roller.value, roller.min, roller.max, &roller.midi_out_binding.clone());
+                        self.send_continuous_binding(id, disposition, roller.value, roller.min, roller.max, &roller.console_out_binding.clone());
                     }
                     _ => {},
                 }
