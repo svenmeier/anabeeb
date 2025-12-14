@@ -84,32 +84,45 @@
             });
         }
 
+        let update = false;
         switch (htmlElement.type) {
             case 'button':
                 htmlElement.addEventListener("click", () => trigger(htmlElement));
-                return;
+                break;
             case 'checkbox':
                 htmlElement.addEventListener("click", () => toggle(htmlElement));
+                update = true;
                 break;
             case 'range':
             case 'number':
                 htmlElement.addEventListener("input", () => change(htmlElement));
+                update = true;
                 break;
         }
 
-        const id = htmlElement.id;
-        fetch(`http://${config.host}:${config.port}/element/${id}`)
-            .then((response) => {
-                if (!response.ok) throw new Error(`response is not ok`);
-                return response.json();
-            })
-            .then((data) => {
-                updateElement(htmlElement, data.elements[id])
-            })
-            .catch((error) => {
-                console.error(`Error initializing '${id}':`, error);
-                onError(error);
-            });
+        if (update) {
+            const id = htmlElement.id;
+            fetch(`http://${config.host}:${config.port}/element/${id}`)
+                .then((response) => {
+                    if (response.status === 404) {
+                        htmlElement.classList.add("error");
+                        return null;
+                    }
+                    if (!response.ok) {
+                        throw new Error(`response is not ok`);
+                    }
+                    return response.json();
+                })
+                .then((data) => {
+                    if (!data) return;
+
+                    updateElement(htmlElement, data.elements[id])
+                })
+                .catch((error) => {
+                    console.error(`Error initializing '${id}':`, error);
+                    onError(error);
+                });
+        }
     }
 
     function onError(error) {
