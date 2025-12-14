@@ -12,7 +12,7 @@ use crate::midi::{get_output_ports, set_midi_channel, set_wildcard};
 use crate::{print_error, print_info};
 use crate::disposition::term::{TermContinuousBinding, TermSwitchBinding};
 use crate::midi::channel_pool::ChannelPool;
-use crate::processor::{midi_out_dispatch, Event, Events};
+use crate::processor::{midi_sound_dispatch, Event, Events};
 
 pub struct SharedOutput {
     connection: MidiOutputConnection,
@@ -62,6 +62,9 @@ pub struct MidiAction {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub console_out_binding: Option<MidiSwitchBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub magnet_release_binding: Option<MidiSwitchBinding>,
 
     #[serde(default)]
     pub references: Vec<Id>,
@@ -143,30 +146,33 @@ impl MidiOutHandler {
             Event::KeyRelease(id, key) => {
                 self.release_key(disposition, id.clone(), *key);
             },
-            Event::MidiOutMessages(id, channel, messages, release) => {
-                self.send_messages(disposition, id.clone(), channel, messages, *release);
+            Event::MidiSoundOutput(id, messages, channel, release) => {
+                self.send_sound(disposition, id.clone(), messages, channel, *release);
+            },
+            Event::MidiConsoleOutput(reference, message) => {
+                self.send_console(disposition, reference.clone(), message.clone());
             },
             Event::Modified(id) => {
                 let element = disposition.elements.get(&id);
 
                 match element {
                     Some(Element::Coupler(coupler)) => {
-                        self.send_switch_binding(id, disposition, coupler.active, &coupler.console_out_binding.clone());
+                        self.send_switch_binding(id, coupler.active, &coupler.console_out_binding.clone());
                     },
                     Some(Element::Captor(captor)) => {
-                        self.send_switch_binding(id, disposition, captor.active, &captor.console_out_binding.clone());
+                        self.send_switch_binding(id, captor.active, &captor.console_out_binding.clone());
                     },
                     Some(Element::MidiAction(action)) => {
-                        self.send_switch_binding(id, disposition, action.active, &action.console_out_binding.clone());
+                        self.send_switch_binding(id, action.active, &action.console_out_binding.clone());
                     },
                     Some(Element::MidiRange(range)) => {
-                        self.send_continuous_binding(id, disposition, range.value, range.min, range.max, &range.console_out_binding.clone());
+                        self.send_continuous_binding(id, range.value, range.min, range.max, &range.console_out_binding.clone());
                     },
                     Some(Element::Memory(memory)) => {
-                        self.send_continuous_binding(id, disposition, memory.value, memory.min, memory.max, &memory.console_out_binding.clone());
+                        self.send_continuous_binding(id, memory.value, memory.min, memory.max, &memory.console_out_binding.clone());
                     },
                     Some(Element::Roller(roller)) => {
-                        self.send_continuous_binding(id, disposition, roller.value, roller.min, roller.max, &roller.console_out_binding.clone());
+                        self.send_continuous_binding(id, roller.value, roller.min, roller.max, &roller.console_out_binding.clone());
                     }
                     _ => {},
                 }
@@ -175,14 +181,15 @@ impl MidiOutHandler {
         }
     }
 
-    fn send_switch_binding(&self, id: &Id, disposition: &mut Disposition, active: bool, binding: &Option<MidiSwitchBinding>) {
+    fn send_switch_binding(&self, id: &Id, active: bool, binding: &Option<MidiSwitchBinding>) {
         if let Some(binding) = binding {
             let message = if active { binding.activate.clone() } else { binding.deactivate.clone() };
-            console_send(disposition, id.clone(), message);
+            
+            self.events.prepend(Event::MidiConsoleOutput(id.clone(), message));
         }
     }
 
-    fn send_continuous_binding(&self, id: &Id, disposition: &mut Disposition, value: u32, min: u32, max: u32, binding: &Option<MidiContinuousBinding>) {
+    fn send_continuous_binding(&self, id: &Id, value: u32, min: u32, max: u32, binding: &Option<MidiContinuousBinding>) {
         if let Some(binding) = binding {
             let delta = max.saturating_sub(min);
             let value = if delta != 0 {
@@ -192,7 +199,7 @@ impl MidiOutHandler {
             };
 
             let message = set_wildcard(&binding.change, value);
-            console_send(disposition, id.clone(), message)
+            self.events.prepend(Event::MidiConsoleOutput(id.clone(), message));
         }
     }
 
@@ -206,7 +213,7 @@ impl MidiOutHandler {
 
                     let messages = range_messages(range);
                     for channel in range._channels.clone().iter() {
-                        midi_out_dispatch(&self.events, &range.references, channel, &messages, false);
+                        midi_sound_dispatch(&self.events, &range.references, &messages, channel, false);
                     }
 
                     true
@@ -231,7 +238,7 @@ impl MidiOutHandler {
 
                     let messages = action_messages(action);
                     for channel in action._channels.clone().iter() {
-                        midi_out_dispatch(&self.events, &action.references, channel, &messages, false);
+                        midi_sound_dispatch(&self.events, &action.references, &messages, channel, false);
                     }
 
                     true
@@ -286,7 +293,7 @@ impl MidiOutHandler {
         Err(format!("no output port '{}'", name).into())
     }
 
-    fn send_messages(&self, disposition: &mut Disposition, id: Id, channel: &String, messages: &Vec<MidiMessage>, release: bool) {
+    fn send_sound(&self, disposition: &mut Disposition, id: Id, messages: &Vec<MidiMessage>, channel: &String, release: bool) {
         match disposition.elements.get_mut(&id) {
             Some(Element::MidiSound(sound)) => {
                 let (channel_number, new) = sound._channels.acquire(channel.as_str());
@@ -309,27 +316,26 @@ impl MidiOutHandler {
                 }
             },
             Some(Element::MidiRange(range)) => {
-                midi_out_dispatch(&self.events, &range.references, channel, &messages, release);
+                midi_sound_dispatch(&self.events, &range.references, &messages, channel, release);
                 if release {
                     range._channels.remove(channel);
                 } else {
                     if range._channels.insert(channel.clone()) {
                         let range_messages = range_messages(range);
-                        midi_out_dispatch(&self.events, &range.references, channel, &range_messages, false);
+                        midi_sound_dispatch(&self.events, &range.references, &range_messages, channel, false);
                     }
                 }
             }
             Some(Element::MidiAction(action)) => {
-                midi_out_dispatch(&self.events, &action.references, channel, &messages, release);
+                midi_sound_dispatch(&self.events, &action.references, &messages, channel, release);
                 if release {
                     action._channels.remove(channel);
                 } else {
                     if action._channels.insert(channel.clone()) {
                         let action_messages = action_messages(action);
-                        midi_out_dispatch(&self.events, &action.references, channel, &action_messages, false);
+                        midi_sound_dispatch(&self.events, &action.references, &action_messages, channel, false);
                     }
                 }
-
             },
             _ => {},
         }
@@ -353,7 +359,7 @@ impl MidiOutHandler {
                     },
                 };
 
-                midi_out_dispatch(&self.events, &rank.references, &id.0, &messages, false);
+                midi_sound_dispatch(&self.events, &rank.references, &messages, &id.0, false);
             }
             _ => {},
         }
@@ -377,10 +383,30 @@ impl MidiOutHandler {
                     },
                 };
 
-                midi_out_dispatch(&self.events, &rank.references, &id.0, &messages, release);
+                midi_sound_dispatch(&self.events, &rank.references, &messages, &id.0, release);
             }
             _ => {},
         }
+    }
+
+    fn send_console(&self, disposition: &mut Disposition, reference: Id, message: MidiMessage) {
+        if message.is_empty() {
+            return;
+        }
+
+        for (id, element) in &mut disposition.elements {
+            match element {
+                Element::MidiConsole(console) => {
+                    if console.references.contains(&reference) {
+                        if let Some(ref mut output) = console._output {
+                            debug!("midi console ${} sent ${} '{:?}'", id, reference, message);
+                            output.borrow_mut().connection.send(message.as_slice()).unwrap();
+                        }
+                    }
+                },
+                _ => {},
+            }
+        };
     }
 }
 
@@ -396,26 +422,6 @@ fn action_messages(action: &mut MidiAction) -> Vec<MidiMessage> {
     } else {
         action.disengage.clone()
     }
-}
-
-fn console_send(disposition: &mut Disposition, reference: Id, message: MidiMessage) {
-    if message.is_empty() {
-        return;
-    }
-    
-    for (id, element) in &mut disposition.elements {
-        match element {
-            Element::MidiConsole(console) => {
-                if console.references.contains(&reference) {
-                    if let Some(ref mut output) = console._output {
-                        debug!("midi console ${} send ${} '{:?}'", id, reference, message);
-                        output.borrow_mut().connection.send(message.as_slice()).unwrap();
-                    }
-                }
-            },
-            _ => {},
-        }
-    };
 }
 
 fn log_midi_ports() {

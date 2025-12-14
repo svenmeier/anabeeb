@@ -11,6 +11,7 @@ use crate::disposition::fluidsynth::FluidsynthHandler;
 use crate::disposition::midi::MidiMessage;
 use crate::disposition::midi_in::MidiInHandler;
 use crate::disposition::midi_out::MidiOutHandler;
+use crate::disposition::sam::{SamsHandler};
 use crate::disposition::term::TermHandler;
 use crate::io::{combine_paths, write_disposition, write_disposition_override, write_memory};
 use crate::setup::setup;
@@ -29,8 +30,10 @@ pub enum Event {
     Save,
     Quit,
     MidiPanic,
-    MidiInMessage(Id, MidiMessage),
-    MidiOutMessages(Id, String, Vec<MidiMessage>, bool),
+    MidiInput(Id, MidiMessage),
+    MidiConsoleOutput(Id, MidiMessage),
+    MidiSoundOutput(Id, Vec<MidiMessage>, String, bool),
+    MagnetRelease(Id, u64, MidiMessage),
     TermKey(KeyCombination),
     RestResponse(Id, Sender<Option<String>>),
 }
@@ -82,6 +85,7 @@ pub struct Processor {
     pending_events: BinaryHeap<PendingEvent>,
     midi_in_handler: MidiInHandler,
     midi_out_handler: MidiOutHandler,
+    sams_handler: SamsHandler,
     rest_handler: RestHandler,
     term_handler: TermHandler,
     fluidsynth_handler: FluidsynthHandler,
@@ -99,6 +103,7 @@ impl Processor {
             pending_events: BinaryHeap::new(),
             midi_in_handler: MidiInHandler::new(events.clone()),
             midi_out_handler: MidiOutHandler::new(events.clone()),
+            sams_handler: SamsHandler::new(events.clone()),
             rest_handler: RestHandler::new(events.clone()),
             term_handler: TermHandler::new(events.clone()),
             fluidsynth_handler: FluidsynthHandler::new(events.clone()),
@@ -120,6 +125,7 @@ impl Processor {
 
         self.midi_in_handler.init(disposition);
         self.midi_out_handler.init(disposition);
+        self.sams_handler.init(disposition);
         self.rest_handler.init(disposition);
         self.term_handler.init(disposition);
         self.fluidsynth_handler.init(disposition);
@@ -163,6 +169,7 @@ impl Processor {
                 _ => {
                     self.midi_in_handler.process(disposition, &event);
                     self.midi_out_handler.process(disposition, &event);
+                    self.sams_handler.process(disposition, &event);
                     self.rest_handler.process(disposition, &event);
                     self.term_handler.process(disposition, &event);
                     self.fluidsynth_handler.process(disposition, &event);
@@ -207,7 +214,7 @@ impl Processor {
         };
     }
 
-    pub fn quit(&self, disposition: &Disposition) {
+    pub fn quit(&mut self, disposition: &mut Disposition) {
         if self.args.save_on_exit {
             self.save(disposition);
         }
@@ -228,8 +235,8 @@ pub fn key_release_dispatch(events: &Events, ids: &Vec<Id>, key: u8) {
     }
 }
 
-pub fn midi_out_dispatch(events: &Events, ids: &Vec<Id>, channel: &String, messages: &Vec<MidiMessage>, release: bool) {
+pub fn midi_sound_dispatch(events: &Events, ids: &Vec<Id>, messages: &Vec<MidiMessage>, channel: &String, release: bool) {
     for id in ids {
-        events.prepend(Event::MidiOutMessages(id.clone(), channel.clone(), messages.clone(), release));
+        events.prepend(Event::MidiSoundOutput(id.clone(), messages.clone(), channel.clone(), release));
     }
 }

@@ -121,6 +121,19 @@
           "properties": {
             "type": {
               "type": "string",
+              "const": "MagnetReleaser"
+            }
+          },
+          "$ref": "#/$defs/MagnetReleaser",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "MidiConsole"
             }
           },
@@ -254,6 +267,7 @@
       "pattern": "^\\S+$"
     },
     "Coupler": {
+      "description": "When activated, forwards all key presses to referenced elements.",
       "type": "object",
       "properties": {
         "active": {
@@ -267,7 +281,7 @@
           "maximum": 127,
           "default": 0
         },
-        "midi_in_binding": {
+        "console_in_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -277,7 +291,17 @@
             }
           ]
         },
-        "midi_out_binding": {
+        "console_out_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "magnet_release_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -307,14 +331,14 @@
       }
     },
     "Captor": {
-      "description": "When activated, the next triggered combination will capture instead of recall its state.",
+      "description": "When activated, the next triggered combination will record its state rather than recalling it.",
       "type": "object",
       "properties": {
         "active": {
           "type": "boolean",
           "default": false
         },
-        "midi_in_binding": {
+        "console_in_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -324,7 +348,17 @@
             }
           ]
         },
-        "midi_out_binding": {
+        "console_out_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "magnet_release_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -385,9 +419,10 @@
       ]
     },
     "Combination": {
+      "description": "When triggered, recalls the state of all references elements.",
       "type": "object",
       "properties": {
-        "midi_in_binding": {
+        "console_in_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiMomentaryBinding"
@@ -397,7 +432,7 @@
             }
           ]
         },
-        "midi_out_binding": {
+        "console_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiMomentaryBinding"
@@ -473,7 +508,7 @@
       }
     },
     "Roller": {
-      "description": "A roller progresses through the referenced elements based on its current value,\n activating the current element while deactivating the previous element,\n or recalling the current element in case of a referenced combination.",
+      "description": "When its value changes, the element matching the previous value is deactivated,\n and the element matching the new value is activated (or triggered, if it is a combination).",
       "type": "object",
       "properties": {
         "value": {
@@ -502,7 +537,7 @@
             }
           ]
         },
-        "midi_in_binding": {
+        "console_in_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiContinuousBinding"
@@ -512,7 +547,7 @@
             }
           ]
         },
-        "midi_out_binding": {
+        "console_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiContinuousBinding"
@@ -536,6 +571,7 @@
       ]
     },
     "Memory": {
+      "description": "When its value changes, stores the state of referenced combinations in a matching level.",
       "type": "object",
       "properties": {
         "value": {
@@ -568,7 +604,7 @@
             }
           ]
         },
-        "midi_in_binding": {
+        "console_in_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiContinuousBinding"
@@ -578,7 +614,7 @@
             }
           ]
         },
-        "midi_out_binding": {
+        "console_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiContinuousBinding"
@@ -617,6 +653,17 @@
     "TermConsole": {
       "type": "object"
     },
+    "MagnetReleaser": {
+      "type": "object",
+      "properties": {
+        "delay": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0,
+          "default": 100
+        }
+      }
+    },
     "MidiConsole": {
       "type": "object",
       "properties": {
@@ -638,7 +685,7 @@
     "MidiKeyboardBinding": {
       "type": "object",
       "properties": {
-        "key_down": {
+        "down": {
           "type": "array",
           "items": {
             "type": "integer",
@@ -648,7 +695,7 @@
           },
           "default": []
         },
-        "key_up": {
+        "up": {
           "type": "array",
           "items": {
             "type": "integer",
@@ -669,7 +716,7 @@
             "null"
           ]
         },
-        "midi_in_binding": {
+        "key_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiKeyboardBinding"
@@ -769,7 +816,7 @@
             }
           ]
         },
-        "midi_in_binding": {
+        "console_in_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiContinuousBinding"
@@ -779,7 +826,7 @@
             }
           ]
         },
-        "midi_out_binding": {
+        "console_out_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiContinuousBinding"
@@ -844,7 +891,7 @@
             }
           ]
         },
-        "midi_in_binding": {
+        "console_in_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -854,7 +901,17 @@
             }
           ]
         },
-        "midi_out_binding": {
+        "console_out_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MidiSwitchBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "magnet_release_binding": {
           "anyOf": [
             {
               "$ref": "#/$defs/MidiSwitchBinding"
@@ -878,6 +935,7 @@
       ]
     },
     "MidiSound": {
+      "description": "Forwards all MIDI out messages to an arbitrary MIDI device.",
       "type": "object",
       "properties": {
         "port": {
@@ -988,6 +1046,7 @@
       ]
     },
     "FluidsynthSound": {
+      "description": "Forwards all Midi out messages to a Fluidsynth instance.",
       "type": "object",
       "properties": {
         "soundfont": {

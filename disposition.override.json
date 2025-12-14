@@ -57,6 +57,18 @@
           0
         ]
       },
+      "magnet_release_binding": {
+        "activate": [
+          177,
+          127,
+          3
+        ],
+        "deactivate": [
+          177,
+          127,
+          2
+        ]
+      },
       "term_binding": {
         "activate": "1",
         "deactivate": "1"

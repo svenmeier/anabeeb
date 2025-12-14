@@ -94,8 +94,8 @@ impl FluidsynthHandler {
 
     pub fn process(&self, disposition: &mut Disposition, event: &Event) {
         match event {
-            Event::MidiOutMessages(id, channel, messages, release) => {
-                send_messages(disposition, id.clone(), channel.clone(), messages, *release);
+            Event::MidiSoundOutput(id, messages, channel, release) => {
+                send_sound(disposition, id.clone(), channel.clone(), messages, *release);
             },
             _ => {},
         }
@@ -149,7 +149,7 @@ fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, 
     Ok((synth, driver))
 }
 
-fn send_messages(disposition: &mut Disposition, id: Id, channel: String, messages: &Vec<MidiMessage>, release: bool) {
+fn send_sound(disposition: &mut Disposition, id: Id, channel: String, messages: &Vec<MidiMessage>, release: bool) {
     match disposition.elements.get_mut(&id) {
         Some(Element::FluidsynthSound(sound)) => {
             if let Some((ref mut synth, _)) = sound._synth {

@@ -28,6 +28,9 @@ pub struct Coupler {
     pub console_out_binding: Option<MidiSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub magnet_release_binding: Option<MidiSwitchBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub term_binding: Option<TermSwitchBinding>,
 
     #[serde(default)]
@@ -51,6 +54,9 @@ pub struct Captor {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub console_out_binding: Option<MidiSwitchBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub magnet_release_binding: Option<MidiSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub term_binding: Option<TermSwitchBinding>,

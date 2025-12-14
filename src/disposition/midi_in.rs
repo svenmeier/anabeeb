@@ -65,7 +65,7 @@ impl MidiInHandler {
 
     pub fn process(&mut self, disposition: &mut Disposition, event: &Event) {
         match event {
-            Event::MidiInMessage(id, message) => {
+            Event::MidiInput(id, message) => {
                 match disposition.elements.get_mut(&id) {
                     Some(Element::MidiKeyboard(keyboard)) => {
                         if let Some(binding) = &mut disposition._binding {
@@ -209,7 +209,7 @@ impl MidiInHandler {
                                                                   debug!("midi in message {:?}", message);
 
                                                                   for id in ids_lock.iter() {
-                                                                      sender_clone.append(Event::MidiInMessage(id.clone(), message.to_vec()));
+                                                                      sender_clone.append(Event::MidiInput(id.clone(), message.to_vec()));
                                                                   }
                                                               },
                                                               (),

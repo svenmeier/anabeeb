@@ -30,6 +30,10 @@
     "console3": {
       "type": "TermConsole"
     },
+    "magnets": {
+      "type": "MagnetReleaser",
+      "delay": 500
+    },
     "coupler1": {
       "type": "Coupler",
       "transpose": 0,

@@ -9,6 +9,7 @@ use crate::disposition::midi::{MidiConsole, MidiMessage};
 use crate::disposition::midi_in::{MidiKeyboard};
 use crate::disposition::midi_out::{MidiAction, MidiRange, MidiRank, MidiSound};
 use crate::disposition::rest::RestConsole;
+use crate::disposition::sam::MagnetReleaser;
 use crate::disposition::term::TermConsole;
 
 pub mod general;
@@ -18,6 +19,7 @@ pub mod midi_out;
 pub mod rest;
 pub mod fluidsynth;
 pub mod term;
+pub mod sam;
 
 #[derive(Serialize, Deserialize,JsonSchema)]
 pub struct Disposition {
@@ -79,6 +81,7 @@ pub enum Element {
     Memory(Memory),
     RestConsole(RestConsole),
     TermConsole(TermConsole),
+    MagnetReleaser(MagnetReleaser),
     MidiConsole(MidiConsole),
     MidiKeyboard(MidiKeyboard),
     MidiRank(MidiRank),
