@@ -209,7 +209,7 @@ impl MidiOutHandler {
                 value = value.clamp(range.min, range.max);
                 if value != range.value {
                     range.value = value;
-                    print_info!("range ${} changed {}", id, value);
+                    print_info!("range @{} changed {}", id, value);
 
                     let messages = range_messages(range);
                     for channel in range._channels.clone().iter() {
@@ -234,7 +234,7 @@ impl MidiOutHandler {
             Some(Element::MidiAction(action)) => {
                 if active != action.active {
                     action.active = active;
-                    print_info!("action ${} activated {}", id, active);
+                    print_info!("action @{} activated {}", id, active);
 
                     let messages = action_messages(action);
                     for channel in action._channels.clone().iter() {
@@ -257,11 +257,11 @@ impl MidiOutHandler {
     fn midi_output(&mut self, id: &Id, name: &str) -> Option<Rc<RefCell<SharedOutput>>> {
         match self.try_midi_output(name) {
             Ok((port_name, shared_output)) => {
-                print_info!("connected ${} to port '{}'", id, port_name);
+                print_info!("connected @{} to port '{}'", id, port_name);
                 Some(shared_output)
             },
             Err(e) => {
-                print_error!("connection ${} failed: {}", id, e);
+                print_error!("connection @{} failed: {}", id, e);
                 None
             },
         }
@@ -300,14 +300,14 @@ impl MidiOutHandler {
                 if channel_number < 16 {
                     if let Some(ref mut output) = sound._output {
                         for message in messages.iter() {
-                            debug!("midi sound ${} send '{}' {} '{:?}'", id, channel, channel_number, message);
+                            debug!("midi sound @{} send '{}' {} '{:?}'", id, channel, channel_number, message);
                             let channel_message = set_midi_channel(message, channel_number);
                             output.borrow_mut().connection.send(&channel_message).unwrap();
                         }
                     }
                 } else {
                     if new {
-                        error!("no channel available in ${} for '{}'", id, channel);
+                        error!("no channel available in @{} for '{}'", id, channel);
                     }
                 }
 
@@ -344,7 +344,7 @@ impl MidiOutHandler {
     fn press_key(&self, disposition: &mut Disposition, id: Id, key: u8) {
         match disposition.elements.get_mut(&id) {
             Some(Element::MidiRank(rank)) => {
-                debug!("midi rank ${} press key {}", id, key);
+                debug!("midi rank @{} press key {}", id, key);
                 rank._pressed_key_count += 1;
 
                 let message = vec![144, key, 127];
@@ -368,7 +368,7 @@ impl MidiOutHandler {
     fn release_key(&self, disposition: &mut Disposition, id: Id, key: u8) {
         match disposition.elements.get_mut(&id) {
             Some(Element::MidiRank(rank)) => {
-                debug!("midi rank ${} release key {}", id, key);
+                debug!("midi rank @{} release key {}", id, key);
                 rank._pressed_key_count -= 1;
 
                 let message = vec![128, key, 0];
@@ -395,16 +395,13 @@ impl MidiOutHandler {
         }
 
         for (id, element) in &mut disposition.elements {
-            match element {
-                Element::MidiConsole(console) => {
-                    if console.references.contains(&reference) {
-                        if let Some(ref mut output) = console._output {
-                            debug!("midi console ${} sent ${} '{:?}'", id, reference, message);
-                            output.borrow_mut().connection.send(message.as_slice()).unwrap();
-                        }
+            if let Element::MidiConsole(console) = element {
+                if console.references.contains(&reference) {
+                    if let Some(ref mut output) = console._output {
+                        debug!("midi console @{} sent @{} '{:?}'", id, reference, message);
+                        output.borrow_mut().connection.send(message.as_slice()).unwrap();
                     }
-                },
-                _ => {},
+                }
             }
         };
     }

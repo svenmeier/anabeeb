@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::disposition::{Disposition, Element, Id};
 use crate::midi::{get_input_ports, get_wildcard};
 use crate::{print_error, print_info};
-use crate::disposition::midi::{to_regex, MidiContinuousBinding, MidiKeyboardBinding, MidiMessage, MidiMomentaryBinding, MidiSwitchBinding};
+use crate::disposition::midi::{to_regex, MidiContinuousBinding, MidiKeyboardBinding, MidiMessage, MidiSwitchBinding};
 use crate::processor::{key_press_dispatch, key_release_dispatch, Event, Events};
 
 struct SharedInput {
@@ -81,17 +81,17 @@ impl MidiInHandler {
 
                             if let Some((_, key)) = get_wildcard(&message, &down) {
                                 if keyboard._pressed_keys.insert(key) {
-                                    debug!("midi keyboard ${} key {} pressed", id, key);
+                                    debug!("midi keyboard @{} key {} pressed", id, key);
                                     key_press_dispatch(&self.events, &keyboard.references, key);
                                 } else {
-                                    warn!("midi keyboard ${} key {} already pressed", id, key)
+                                    warn!("midi keyboard @{} key {} already pressed", id, key)
                                 }
                             } else if let Some((_, key)) = get_wildcard(&message, &up) {
                                 if keyboard._pressed_keys.remove(&key) {
-                                    debug!("midi keyboard ${} key {} released", id, key);
+                                    debug!("midi keyboard @{} key {} released", id, key);
                                     key_release_dispatch(&self.events, &keyboard.references, key);
                                 } else {
-                                    warn!("midi keyboard ${} key {} was not pressed", id, key)
+                                    warn!("midi keyboard @{} key {} was not pressed", id, key)
                                 }
                             }
                         }
@@ -113,7 +113,7 @@ impl MidiInHandler {
             Event::MidiPanic => {
                 self.midi_panic(disposition);
             },
-            Event::BindingEnd => {
+            Event::BindingConfirm => {
                 binding_end(disposition);
             },
             _ => {},
@@ -140,13 +140,13 @@ impl MidiInHandler {
                 },
                 Some(Element::Combination(combination)) => {
                     if let Some(binding) = &mut combination.console_in_binding {
-                        if binding.trigger == *message {
-                            self.events.append(Event::Trigger(id));
+                        if binding.activate == *message {
+                            self.events.append(Event::Activate(id, true));
                         }
                     }
                 },
                 None => {
-                    warn!("invalid id ${}", id);
+                    warn!("invalid id @{}", id);
                 },
                 _ => {},
             }
@@ -177,10 +177,10 @@ impl MidiInHandler {
     fn midi_input(&mut self, id: &Id, name: &str)  {
         match self.try_midi_input(id, name) {
             Ok(port_name) => {
-                print_info!("connected ${} to port '{}'", id, port_name);
+                print_info!("connected @{} to port '{}'", id, port_name);
             },
             Err(e) => {
-                print_error!("connection ${} failed: {}", id, e);
+                print_error!("connection @{} failed: {}", id, e);
             },
         }
     }
@@ -236,7 +236,7 @@ impl MidiInHandler {
                 let keys = keyboard._pressed_keys.clone();
                 for key in keys {
                     panicked = true;
-                    info!("midi panic ${} stuck key {}", id, key);
+                    info!("midi panic @{} stuck key {}", id, key);
                     key_release_dispatch(&self.events, &keyboard.references, key);
                 }
             }
@@ -256,7 +256,7 @@ fn binding_end(disposition: &mut Disposition) {
                     e.console_in_binding = switch_binding(&binding.messages).or(e.console_in_binding.clone());
                 }
                 Element::Combination(e) => {
-                    e.console_in_binding = momentary_binding(&binding.messages).or(e.console_in_binding.clone());
+                    e.console_in_binding = switch_binding(&binding.messages).or(e.console_in_binding.clone());
                 }
                 Element::Captor(e) => {
                     e.console_in_binding = switch_binding(&binding.messages).or(e.console_in_binding.clone());
@@ -319,17 +319,6 @@ fn continuous_binding(messages: &Vec<MidiMessage>) -> Option<MidiContinuousBindi
     });
 
     change.map(|m| MidiContinuousBinding { change: m.clone() })
-}
-
-fn momentary_binding(messages: &Vec<MidiMessage>) -> Option<MidiMomentaryBinding> {
-
-    let len = messages.len();
-    if len >= 1 {
-        return Some(MidiMomentaryBinding {
-            trigger: messages[len - 1].clone(),
-        })
-    }
-    None
 }
 
 fn switch_binding(messages: &Vec<MidiMessage>) -> Option<MidiSwitchBinding> {

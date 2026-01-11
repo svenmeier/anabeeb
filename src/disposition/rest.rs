@@ -58,12 +58,16 @@ impl RestHandler {
 
     pub fn process(&mut self, disposition: &mut Disposition, event: &Event) {
         match event {
-            Event::RestResponse(id, result) => {
-                let data = to_response_data(disposition, &id);
+            Event::RestElements(result) => {
+                let data = to_elements_data(disposition);
+                result.send(data).unwrap();
+            }
+            Event::RestElement(id, result) => {
+                let data = to_element_data(disposition, &id);
                 result.send(data).unwrap();
             }
             Event::Modified(id) => {
-                let data = match to_response_data(disposition, &id) {
+                let data = match to_element_data(disposition, &id) {
                     Some(read) => read,
                     None => return,
                 };
@@ -72,7 +76,7 @@ impl RestHandler {
                 self.clients.lock().unwrap().retain_mut(|client| {
                     match client.send_text(&data) {
                         Ok(_) => {
-                            debug!("modification ${} sent to websocket client '{}'", id, client.id);
+                            debug!("modification @{} sent to websocket client '{}'", id, client.id);
                             true
                         },
                         Err(e) => {
@@ -115,6 +119,8 @@ fn start_server(id: Id, port: u16, events: Events, clients: Clients) {
                     let element_id = Regex::new(r"^/element/([^/]+)$").unwrap();
                     if let Some(caps) = element_id.captures(&path) {
                         response = get_element(&events, caps);
+                    } else {
+                        response = get_elements(&events);
                     }
                 }
             }
@@ -127,11 +133,11 @@ fn start_server(id: Id, port: u16, events: Events, clients: Clients) {
         
         match server {
             Ok(server) => {
-                print_info!("connected ${} to port {}", id, server.server_addr());
+                print_info!("connected @{} to port {}", id, server.server_addr());
                 server.run();
             },
             Err(e) => {
-                print_error!("console ${} failed to connect: {}", id, e);
+                print_error!("console @{} failed to connect: {}", id, e);
             },
         }
     });
@@ -164,20 +170,35 @@ fn post_binding(events: &Events, caps: Captures) -> Response {
         "start" => {
             events.append(Event::BindingStart(id.clone()));
         },
-        "end" => {
-            events.append(Event::BindingEnd);
-        }
+        "confirm" => {
+            events.append(Event::BindingConfirm);
+        },
+        "cancel" => {
+            events.append(Event::BindingCancel);
+        },
         _ => {
             return Response::empty_400();
         },
     };
-    Response::text("").with_status_code(200)
+    Response::text("{}").with_status_code(200)
+}
+
+fn get_elements(events: &Events) -> Response{
+    let (sender, receiver) = bounded(1);
+
+    events.append(Event::RestElements(sender));
+
+    match receiver.recv_timeout(Duration::from_secs(5)) {
+        Ok(Some(result)) => Response::text(result),
+        Ok(None) => Response::text("Not found").with_status_code(404),
+        Err(_) => Response::text("Timeout").with_status_code(504),
+    }
 }
 
 fn get_element(events: &Events, caps: Captures) -> Response{
     let id: Id = caps[1].into();
 
-    respond(&events, id)
+    respond_element(&events, id)
 }
 
 fn post_modify(events: &Events, caps: Captures) -> Response {
@@ -186,7 +207,6 @@ fn post_modify(events: &Events, caps: Captures) -> Response {
     let event = match &caps[2] {
         "activate" => Event::Activate(id.clone(), true),
         "deactivate" => Event::Activate(id.clone(), false),
-        "trigger" => Event::Trigger(id.clone()),
         "change" => {
             let value = match caps.get(4).and_then(|m| m.as_str().parse::<u32>().ok()) {
                 Some(v) => v,
@@ -200,13 +220,13 @@ fn post_modify(events: &Events, caps: Captures) -> Response {
     };
     events.append(event);
     
-    respond(&events, id)
+    respond_element(&events, id)
 }
 
-fn respond(events: &Events, id: Id) -> Response {
+fn respond_element(events: &Events, id: Id) -> Response {
     let (sender, receiver) = bounded(1);
 
-    events.append(Event::RestResponse(id, sender));
+    events.append(Event::RestElement(id, sender));
 
     match receiver.recv_timeout(Duration::from_secs(5)) {
         Ok(Some(result)) => Response::text(result),
@@ -215,7 +235,7 @@ fn respond(events: &Events, id: Id) -> Response {
     }
 }
 
-fn to_response_data(disposition: &Disposition, id: &Id) -> Option<String> {
+fn to_element_data(disposition: &Disposition, id: &Id) -> Option<String> {
     match disposition.elements.get(id) {
         Some(element) => {
             let mut data = ResponseData::new();
@@ -225,4 +245,13 @@ fn to_response_data(disposition: &Disposition, id: &Id) -> Option<String> {
         },
         _ => None,
     }
+}
+
+fn to_elements_data(disposition: &Disposition) -> Option<String> {
+    let mut data = ResponseData::new();
+
+    for (id, element) in disposition.elements.iter() {
+        data.elements.insert(id, element);
+    }
+    Some(serde_json::to_string_pretty(&data).unwrap())
 }

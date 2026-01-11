@@ -134,10 +134,10 @@ fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, 
     let combined_path = combine_paths(path, sound.soundfont.as_str());
     let soundfont_id = match synth.sfload(combined_path.as_str(), 0) {
         Some(soundfont_id) => {
-            info!("loaded soundfont for ${} from '{}'", id, combined_path);
+            info!("loaded soundfont for @{} from '{}'", id, combined_path);
             soundfont_id
         },
-        None => return Err(format!("failed to load soundfont for ${} from '{}'", id, combined_path).as_str().into()),
+        None => return Err(format!("failed to load soundfont for @{} from '{}'", id, combined_path).as_str().into()),
     };
     
     synth.set_interp_method(-1, sound.interpolate);
@@ -156,12 +156,12 @@ fn send_sound(disposition: &mut Disposition, id: Id, channel: String, messages: 
                 let (channel_number, new) = sound._channels.acquire(channel.as_str());
                 if channel_number < sound.settings.synth_midi_channels as u8 {
                     for message in messages {
-                        debug!("fluidsynth sound ${} send '{}' {} {:?}", id, channel, channel_number, message);
+                        debug!("fluidsynth sound @{} send '{}' {} {:?}", id, channel, channel_number, message);
                         send(synth, channel_number, message);
                     }
                 } else {
                     if new {
-                        error!("no channel available in ${} for '{}'", id, channel);
+                        error!("no channel available in @{} for '{}'", id, channel);
                     }
                 }
 

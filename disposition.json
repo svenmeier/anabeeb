@@ -4,13 +4,31 @@
     "captor": {
       "type": "Captor"
     },
-    "combination": {
+    "combination1": {
       "type": "Combination",
       "references": [
         "coupler1",
         "coupler2",
         "range",
         "action"
+      ]
+    },
+    "combination2": {
+      "type": "Combination",
+      "references": [
+        "coupler1",
+        "coupler2",
+        "range",
+        "action"
+      ]
+    },
+    "roller":{
+      "type": "Roller",
+      "min": 0,
+      "max": 1,
+      "references": [
+        "combination1",
+        "combination2"
       ]
     },
     "console1": {
@@ -20,7 +38,8 @@
         "coupler2",
         "range",
         "action",
-        "combination",
+        "combination1",
+        "combination2",
         "captor"
       ]
     },
@@ -138,7 +157,7 @@
     },
     "sound1": {
       "type": "FluidsynthSound",
-      "soundfont": "./examples/disposition.sf2",
+      "soundfont": "./soundfont/disposition.sf2",
       "bank_offset": 0,
       "gain": 0.25,
       "interpolate": 4,

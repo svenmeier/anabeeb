@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Anabeeb</title>
+    <link rel="stylesheet" href="ui.css" />
+    <link rel="stylesheet" href="edit.css" />
+    <script src="disposition.js"></script>
+    <script src="ui.js"></script>
+    <script src="edit.js"></script>
+</head>
+<body>
+
+<div class="templates">
+    <template data-template="other">
+        <div class="other">
+            <label>KEYBOARD</label>
+        </div>
+    </template>
+    <template data-template="stop">
+        <div class="stop">
+            <input type="checkbox" />
+            <label>STOP</label>
+        </div>
+    </template>
+    <template data-template="slider">
+        <div class="slider">
+            <input type="range" />
+            <label>SLIDER</label>
+        </div>
+    </template>
+    <template data-template="counter">
+        <div class="counter">
+            <input type="number" />
+            <label>COUNTER</label>
+        </div>
+    </template>
+</div>
+
+<div class="elements">
+</div>
+
+<dialog id="editor">
+    <div>
+        <label data-editor-id>ID</label>
+    </div>
+    <div>
+        <select data-editor-template size="3"></select>
+    </div>
+    <div>
+        <input data-editor-scale type="number" min="0.5" max="2.0" step="0.1" />
+    </div>
+    <div>
+        <textarea data-editor-label>LABEL</textarea>
+    </div>
+    <div>
+        <input data-editor-uri type="url"/>
+    </div>
+    <div>
+        <input data-editor-grid type="number" min="1" max="50" step="10" />
+    </div>
+    <div>
+        <select data-editor-elements multiple size="10"></select>
+    </div>
+    <div>
+        <a data-editor-add><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z"/></svg></a>
+        <a data-editor-move><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M120-120v-240h80v104l124-124 56 56-124 124h104v80H120Zm480 0v-80h104L580-324l56-56 124 124v-104h80v240H600ZM324-580 200-704v104h-80v-240h240v80H256l124 124-56 56Zm312 0-56-56 124-124H600v-80h240v240h-80v-104L636-580ZM480-400q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Z"/></svg></a>
+        <a data-editor-bind><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M200-40q-50 0-85-35t-35-85q0-50 35-85t85-35q27 0 52 12.5t42 33.5q59-32 96-86t46-120H312q-12 36-43 58t-69 22q-50 0-85-35t-35-85q0-50 35-85t85-35q38 0 69 22t43 58h124q-9-66-46-120t-96-86q-17 21-42 33.5T200-680q-50 0-85-35t-35-85q0-50 35-85t85-35q50 0 84 34t36 84q81 42 134 116t64 166h210l-64-64 56-56 160 160-160 160-56-56 64-64H518q-11 92-63 166.5T320-158q-2 50-36 84t-84 34Z"/></svg></a>
+        <a data-editor-remove><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/></svg></a>
+        <a data-editor-download><svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg></a>
+    </div>
+</dialog>
+<dialog id="errors">
+    <p>
+        🚨 Could not connect to the Anabeeb server,
+        <a href="" onclick="location.reload(); return false;">refresh</a>
+        to try again.
+    </p>
+</dialog>
+
+</body>
+</html>

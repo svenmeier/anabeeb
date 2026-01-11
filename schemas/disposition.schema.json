@@ -331,7 +331,7 @@
       }
     },
     "Captor": {
-      "description": "When activated, the next triggered combination will record its state rather than recalling it.",
+      "description": "When activated, the next activated combination will record its state rather than recalling it.",
       "type": "object",
       "properties": {
         "active": {
@@ -380,32 +380,6 @@
         }
       }
     },
-    "MidiMomentaryBinding": {
-      "type": "object",
-      "properties": {
-        "trigger": {
-          "type": "array",
-          "items": {
-            "type": "integer",
-            "format": "uint8",
-            "minimum": 0,
-            "maximum": 255
-          },
-          "default": []
-        }
-      }
-    },
-    "TermMomentaryBinding": {
-      "type": "object",
-      "properties": {
-        "trigger": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "trigger"
-      ]
-    },
     "CombinationCapture": {
       "anyOf": [
         {
@@ -419,13 +393,13 @@
       ]
     },
     "Combination": {
-      "description": "When triggered, recalls the state of all references elements.",
+      "description": "When activated, recalls the state of all references elements.",
       "type": "object",
       "properties": {
         "console_in_binding": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MidiMomentaryBinding"
+              "$ref": "#/$defs/MidiSwitchBinding"
             },
             {
               "type": "null"
@@ -435,7 +409,7 @@
         "console_out_binding": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MidiMomentaryBinding"
+              "$ref": "#/$defs/MidiSwitchBinding"
             },
             {
               "type": "null"
@@ -445,7 +419,7 @@
         "term_binding": {
           "anyOf": [
             {
-              "$ref": "#/$defs/TermMomentaryBinding"
+              "$ref": "#/$defs/TermSwitchBinding"
             },
             {
               "type": "null"
@@ -508,7 +482,7 @@
       }
     },
     "Roller": {
-      "description": "When its value changes, the element matching the previous value is deactivated,\n and the element matching the new value is activated (or triggered, if it is a combination).",
+      "description": "When its value changes, the element matching the previous value is deactivated,\n and the element matching the new value is activated.",
       "type": "object",
       "properties": {
         "value": {

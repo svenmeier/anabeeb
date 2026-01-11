@@ -2,11 +2,11 @@ use std::collections::{BTreeMap, HashMap};
 use serde::{Deserialize, Serialize};
 use log::{debug, error, info, warn};
 use schemars::JsonSchema;
-use crate::disposition::term::{TermMomentaryBinding, TermSwitchBinding, TermContinuousBinding};
+use crate::disposition::term::{TermSwitchBinding, TermContinuousBinding};
 use crate::io::{combine_paths, read_memory};
 use crate::disposition::general::CombinationCapture::{Active, Value};
 use crate::disposition::{Binding, Disposition, Element, Id};
-use crate::disposition::midi::{MidiMomentaryBinding, MidiSwitchBinding, MidiContinuousBinding};
+use crate::disposition::midi::{MidiSwitchBinding, MidiContinuousBinding};
 use crate::print_info;
 use crate::processor::{key_press_dispatch, key_release_dispatch, Event, Events};
 
@@ -42,7 +42,7 @@ pub struct Coupler {
 }
 
 /**
- When activated, the next triggered combination will record its state rather than recalling it.
+ When activated, the next activated combination will record its state rather than recalling it.
 */
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Captor {
@@ -63,19 +63,22 @@ pub struct Captor {
 }
 
 /**
-When triggered, recalls the state of all references elements.
+When activated, recalls the state of all references elements.
 */
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Combination {
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub console_in_binding: Option<MidiMomentaryBinding>,
+    #[serde(default)]
+    pub active: bool,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub console_out_binding: Option<MidiMomentaryBinding>,
+    pub console_in_binding: Option<MidiSwitchBinding>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub term_binding: Option<TermMomentaryBinding>,
+    pub console_out_binding: Option<MidiSwitchBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub term_binding: Option<TermSwitchBinding>,
 
     #[serde(default)]
     pub references: Vec<Id>,
@@ -118,7 +121,7 @@ pub struct Memory {
 
 /**
  When its value changes, the element matching the previous value is deactivated,
- and the element matching the new value is activated (or triggered, if it is a combination).
+ and the element matching the new value is activated.
 */
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Roller {
@@ -204,7 +207,7 @@ impl GeneralHandler {
                         },
                         Ok(state) => {
                             memory._state = Some(state);
-                            info!("loaded memory state ${} from '{}'", id, combined_path);
+                            info!("loaded memory state @{} from '{}'", id, combined_path);
                         },
                     }
                 },
@@ -217,6 +220,10 @@ impl GeneralHandler {
         match event {
             Event::Activate(id, active) => {
                 self.activate(disposition, id.clone(), active.clone());
+
+                if *active {
+                    self.roller_check(disposition, id.clone());
+                }
             },
             Event::Change(id, value) => {
                 self.change(disposition, id.clone(), value.clone());
@@ -227,16 +234,25 @@ impl GeneralHandler {
             Event::KeyRelease(id, key) => {
                 self.release_key(disposition, id.clone(), *key);
             },
-            Event::Trigger(id) => {
-                self.trigger(disposition, id.clone());
+            Event::Capture(id) => {
+                self.combination_capture(disposition, id.clone());
+            },
+            Event::Recall(id) => {
+                self.combination_recall(disposition, id.clone());
             },
             Event::BindingStart(id) => {
-                print_info!("binding start ${}", id);
+                print_info!("binding start @{}", id);
                 disposition._binding = Some(Binding::new(id.clone()));
             },
-            Event::BindingEnd => {
+            Event::BindingCancel => {
                 if let Some(binding) = &disposition._binding {
-                    print_info!("binding end ${}", binding.id.clone());
+                    print_info!("binding cancel @{}", binding.id.clone());
+                    disposition._binding = None;
+                }
+            },
+            Event::BindingConfirm => {
+                if let Some(binding) = &disposition._binding {
+                    print_info!("binding confirm @{}", binding.id.clone());
                     disposition._binding = None;
                 }
             },
@@ -251,7 +267,7 @@ impl GeneralHandler {
                 if value != memory.value {
                     let old_value = memory.value;
                     memory.value = value;
-                    print_info!("memory ${} changed {}", id, memory.value);
+                    print_info!("memory @{} changed {}", id, memory.value);
 
                     self.memory_level(disposition, id.clone(), old_value as usize, value as usize);
                     true
@@ -264,7 +280,7 @@ impl GeneralHandler {
                 if value != roller.value {
                     let old_value = roller.value;
                     roller.value = value;
-                    print_info!("roller ${} changed {}", id, roller.value);
+                    print_info!("roller @{} changed {}", id, roller.value);
 
                     self.roller_roll(disposition, id.clone(), old_value as usize, value as usize);
                     true
@@ -285,7 +301,7 @@ impl GeneralHandler {
             Some(Element::Captor(captor)) => {
                 if captor.active != active {
                     captor.active = active;
-                    print_info!("captor ${} activated {}", id, captor.active);
+                    print_info!("captor @{} activated {}", id, captor.active);
 
                     true
                 } else {
@@ -295,7 +311,7 @@ impl GeneralHandler {
             Some(Element::Coupler(coupler)) => {
                 if coupler.active != active {
                     coupler.active = active;
-                    print_info!("coupler ${} activated {}", id, coupler.active);
+                    print_info!("coupler @{} activated {}", id, coupler.active);
 
                     let keys: Vec<u8>  = coupler._down_keys.keys().cloned().collect();
                     let references = coupler.references.clone();
@@ -312,6 +328,33 @@ impl GeneralHandler {
                     false
                 }
             },
+            Some(Element::Combination(combination)) => {
+                let mut modified = false;
+                if active != combination.active {
+                    combination.active = active;
+                    modified = true;
+                }
+
+                if active {
+                    let capturing = disposition.elements.iter_mut().find_map(|(id, element)| {
+                        if let Element::Captor(captor) = element {
+                            if captor.active {
+                                self.events.prepend(Event::Activate(id.clone(), false));
+                                return Some(true);
+                            }
+                        }
+                        None
+                    });
+
+                    if let Some(true) = capturing {
+                        self.events.prepend(Event::Capture(id.clone()));
+                    } else {
+                        self.events.prepend(Event::Recall(id.clone()));
+                    }
+                }
+
+                modified
+            },
             _ => false,
         };
 
@@ -320,56 +363,35 @@ impl GeneralHandler {
         }
     }
 
-    fn trigger(&self, disposition: &mut Disposition, id: Id) {
-        let captor_id = disposition.elements.iter_mut().find_map(|(id, element)| {
-            if let Element::Captor(captor) = element {
-                if captor.active {
-                    return Some(id.clone());
+    fn combination_recall(&self, disposition: &mut Disposition, id: Id) {
+        if let Some(Element::Combination(combination)) = disposition.elements.get_mut(&id) {
+            let state = combination.state.clone();
+
+            info!("combination recall @{}", id);
+            for id in combination.references.clone() {
+                match disposition.elements.get(&id) {
+                    Some(Element::Coupler(_) | Element::MidiAction(_)) => {
+                        if let Some(Active(active)) = state.get(&id) {
+                            self.events.prepend(Event::Activate(id.clone(), active.clone()));
+                        }
+                    },
+                    Some(Element::Roller(_) | Element::MidiRange(_)) => {
+                        if let Some(Value(value)) = state.get(&id) {
+                            self.events.prepend(Event::Change(id.clone(), value.clone()));
+                        }
+                    },
+                    _ => {},
                 }
             }
-            None
-        });
-        if let Some(captor_id) = captor_id {
-            self.events.prepend(Event::Activate(captor_id.clone(), false));
-            self.combination_capture(disposition, id.clone());
-            return;
         }
-
-        self.combination_recall(disposition, id.clone());
-    }
-
-    fn combination_recall(&self, disposition: &mut Disposition, id: Id) {
-        match disposition.elements.get_mut(&id) {
-            Some(Element::Combination(combination)) => {
-                let state = combination.state.clone();
-
-                info!("combination recall ${}", id);
-                for id in combination.references.clone() {
-                    match disposition.elements.get(&id) {
-                        Some(Element::Coupler(_) | Element::MidiAction(_)) => {
-                            if let Some(Active(active)) = state.get(&id) {
-                                self.events.prepend(Event::Activate(id.clone(), active.clone()));
-                            }
-                        },
-                        Some(Element::Roller(_) | Element::MidiRange(_)) => {
-                            if let Some(Value(value)) = state.get(&id) {
-                                self.events.prepend(Event::Change(id.clone(), value.clone()));
-                            }
-                        },
-                        _ => {},
-                    }
-                }
-            },
-            _ => {},
-        };
     }
 
     fn combination_capture(&self, disposition: &mut Disposition, id: Id) {
         let ids = if let Some(Element::Combination(combination)) = disposition.elements.get(&id) {
-            info!("combination capture ${}", id);
+            info!("combination capture @{}", id);
             combination.references.clone()
         } else {
-            warn!("invalid id ${}", id);
+            warn!("invalid id @{}", id);
             return;
         };
 
@@ -405,29 +427,25 @@ impl GeneralHandler {
     fn roller_roll(&self, disposition: &mut Disposition, id: Id, previous_index: usize, new_index: usize) {
         if let Some(Element::Roller(roller)) = disposition.elements.get_mut(&id) {
             if let Some(id) = roller.references.get(previous_index).cloned() {
-                let event = match disposition.elements.get(&id) {
-                    Some(Element::Combination(_)) => None,
-                    _ => Some(Event::Activate(id, false))
-                };
-
-                if let Some(event) = event {
-                    self.events.prepend(event);
-                }
+                self.events.prepend(Event::Activate(id, false));
             }
         }
 
         if let Some(Element::Roller(roller)) = disposition.elements.get_mut(&id) {
             if let Some(id) = roller.references.get(new_index).cloned() {
-                let event = match disposition.elements.get(&id) {
-                    Some(Element::Combination(_)) => Some(Event::Trigger(id)),
-                    _ => Some(Event::Activate(id, true)),
-                };
-
-                if let Some(event) = event {
-                    self.events.prepend(event);
-                }
+                self.events.prepend(Event::Activate(id, true));
             }
         }
+    }
+
+    fn roller_check(&self, disposition: &mut Disposition, reference: Id) {
+        for (id, element) in &mut disposition.elements {
+            if let Element::Roller(roller) = element {
+                if let Some(index) = roller.references.iter().position(|candidate| candidate == &reference) {
+                    self.events.prepend(Event::Change(id.clone(), index as u32));
+                }
+            }
+        };
     }
     
     fn memory_level(&self, disposition: &mut Disposition, id: Id, previous_index: usize, new_index: usize) {
@@ -477,7 +495,7 @@ impl GeneralHandler {
                     *value += 1;
                 } else {
                     coupler._down_keys.insert(key, 1);
-                    debug!("coupler ${} key {} true", id, key);
+                    debug!("coupler @{} key {} true", id, key);
                     if coupler.active {
                         key_press_dispatch(&self.events, &coupler.references, coupler_transpose(key, transpose));
                     }
@@ -500,7 +518,7 @@ impl GeneralHandler {
 
                     if *value == 0 {
                         coupler._down_keys.remove(&key);
-                        debug!("coupler ${} key {} false", id, key);
+                        debug!("coupler @{} key {} false", id, key);
 
                         if coupler.active {
                             key_release_dispatch(&self.events, &coupler.references, coupler_transpose(key, transpose));

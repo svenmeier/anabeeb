@@ -14,8 +14,9 @@ if "%EXE%"=="" (
     echo No .exe found in target\release.
     exit /b 1
 )
-set EXAMPLES="examples"
+set SOUNDFONT="soundfont"
 set SCHEMAS="schemas"
+set UI="ui"
 set JSON="*.json"
 set DLLS="target\fluidsynth\bin\*.dll"
 set TEMP="target\anabeeb"
@@ -25,7 +26,8 @@ if exist %TEMP% rmdir /s /q %TEMP%
 mkdir %TEMP%
 copy "%EXE%" "%TEMP%\" >nul
 copy "%JSON%" "%TEMP%\" >nul
-xcopy /E /I /Y "%EXAMPLES%" "%TEMP%\%EXAMPLES%\" >nul
+xcopy /E /I /Y "%SOUNDFONT%" "%TEMP%\%SOUNDFONT%\" >nul
+xcopy /E /I /Y "%UI%" "%TEMP%\%UI%\" >nul
 xcopy /E /I /Y "%SCHEMAS%" "%TEMP%\%SCHEMAS%\" >nul
 xcopy /E /I /Y "%DLLS%" "%TEMP%\" >nul
 

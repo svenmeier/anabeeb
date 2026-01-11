@@ -14,15 +14,28 @@
         "deactivate": "x"
       }
     },
-    "combination": {
+    "combination1": {
       "term_binding": {
-        "trigger": "c"
+        "activate": "c",
+        "deactivate": "c"
       },
       "state": {
         "action": true,
         "coupler1": true,
         "coupler2": true,
         "range": 64
+      }
+    },
+    "combination2": {
+      "term_binding": {
+        "activate": "v",
+        "deactivate": "v"
+      },
+      "state": {
+        "action": false,
+        "coupler1": false,
+        "coupler2": false,
+        "range": 127
       }
     },
     "console1": {

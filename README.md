@@ -15,6 +15,7 @@ The user interface is built with HTML, CSS, and a lightweight JavaScript library
 engines of modern browsers.
 This approach keeps the core organ processing fast and efficient while allowing the UI to run independently — even on a
 different device within the same network.
+An experimental HTML user interface is provided, offering limited editing capabilities via contextmenu.
 
 Organ Disposition
 -----------------
@@ -116,3 +117,5 @@ Anabeeb is designed as the successor to the jOrgan virtual organ and strives for
 Unlike jOrgan, which relies on a graphical editor, Anabeeb encourages creators to take advantage of the flexibility of JSON.
 To support this, it includes schema definitions for all file formats, enabling a faster and precise editing workflow
 with any suitable JSON editor.
+
+Images used from www.freepik.com

@@ -10,28 +10,28 @@ pub fn setup(disposition: &mut Disposition, processor: &Processor) -> Result<(),
     for (id, element) in &mut disposition.elements {
         match element {
             MidiConsole(console) => {
-                print_info!("Midi Console ${} - input port", id);
+                print_info!("Midi Console @{} - input port", id);
 
                 if let Ok(ports) = get_input_ports() {
                     console.port = choose(console.port.clone(), ports)?;
                 }
             },
             MidiKeyboard(keyboard) => {
-                print_info!("Midi Keyboard ${} - input port", id);
+                print_info!("Midi Keyboard @{} - input port", id);
 
                 if let Ok(ports) = get_input_ports() {
                     keyboard.port = choose(keyboard.port.clone(), ports)?;
                 }
             },
             MidiSound(sound) => {
-                print_info!("Midi Sound ${} - output port", id);
+                print_info!("Midi Sound @{} - output port", id);
 
                 if let Ok(ports) = get_output_ports() {
                     sound.port = choose(sound.port.clone(), ports)?;
                 }
             },
             RestConsole(console) => {
-                print_info!("Rest Console ${} - port", id);
+                print_info!("Rest Console @{} - port", id);
 
                 console.port = number(console.port.clone())?;
             },

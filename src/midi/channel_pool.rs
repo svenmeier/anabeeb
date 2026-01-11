@@ -24,7 +24,7 @@ impl ChannelPool {
         let used: HashSet<u8> = self.channels.values().cloned().collect();
         for channel in 0.. {
             if !used.contains(&channel) {
-                debug!("acquired ${} channel #{}", key, channel);
+                debug!("acquired '{}' channel {}", key, channel);
                 self.channels.insert(key.to_string(), channel);
                 return (channel, true);
             }
@@ -35,7 +35,7 @@ impl ChannelPool {
 
     pub fn release(&mut self, key: &str) {
         if let Some(channel) = self.channels.remove(key) {
-            debug!("released ${} channel #{}", key, channel);
+            debug!("released '{}' channel {}", key, channel);
         }
     }
 }

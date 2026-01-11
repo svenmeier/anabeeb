@@ -36,12 +36,6 @@ pub struct MidiContinuousBinding {
 }
 
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
-pub struct MidiMomentaryBinding {
-    #[serde(default)]
-    pub trigger: MidiMessage,
-}
-
-#[derive(Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MidiKeyboardBinding {
     #[serde(default)]
     pub down: MidiMessage,

@@ -24,11 +24,6 @@ POST http://localhost:4040/element/filter1/change/100
 ###
 GET http://localhost:4040/element/filter1
 
-### combination
-POST http://localhost:4040/element/combination/trigger
-###
-GET http://localhost:4040/element/combination
-
 ### memory
 POST http://localhost:4040/element/memory/change/0
 ###

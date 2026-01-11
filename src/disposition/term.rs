@@ -26,12 +26,6 @@ pub struct TermContinuousBinding {
     pub delta: u32,
 }
 
-#[derive(Clone, Serialize, Deserialize, JsonSchema)]
-pub struct TermMomentaryBinding {
-    #[schemars(with="String")]
-    pub trigger: KeyCombination,
-}
-
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct TermConsole {
 }
@@ -88,8 +82,8 @@ impl TermHandler {
                     _ => {},
                 }
             },
-            Event::BindingEnd => {
-                binding_end(disposition);
+            Event::BindingConfirm => {
+                binding_confirm(disposition);
             },
             _ => {},
         }
@@ -107,18 +101,14 @@ impl TermHandler {
                 Some(Element::MidiAction(action)) => {
                     self.match_switch_binding(id, action.active, key, &action.term_binding);
                 },
+                Some(Element::Combination(combination)) => {
+                    self.match_switch_binding(id, combination.active, key, &combination.term_binding);
+                },
                 Some(Element::MidiRange(range)) => {
                     self.match_continuous_binding(id, range.value, range.min, range.max, key, &range.term_binding);
                 },
                 Some(Element::Memory(memory)) => {
                     self.match_continuous_binding(id, memory.value, memory.min, memory.max, key, &memory.term_binding);
-                },
-                Some(Element::Combination(combination)) => {
-                    if let Some(binding) = &mut combination.term_binding {
-                        if *key == binding.trigger {
-                            self.events.append(Event::Trigger(id.clone()));
-                        }
-                    }
                 },
                 _ => {},
             }
@@ -148,7 +138,7 @@ impl TermHandler {
     }
 }
 
-fn binding_end(disposition: &mut Disposition) {
+fn binding_confirm(disposition: &mut Disposition) {
     if let Some(binding) = &disposition._binding {
         if let Some(element) = disposition.elements.get_mut(&binding.id) {
             match element {
@@ -156,7 +146,7 @@ fn binding_end(disposition: &mut Disposition) {
                     e.term_binding = switch_binding(&binding.keys).or(e.term_binding.clone());
                 },
                 Element::Combination(e) => {
-                    e.term_binding = momentary_binding(&binding.keys).or(e.term_binding.clone());
+                    e.term_binding = switch_binding(&binding.keys).or(e.term_binding.clone());
                 },
                 Element::Captor(e) => {
                     e.term_binding = switch_binding(&binding.keys).or(e.term_binding.clone());
@@ -200,7 +190,7 @@ fn read_and_send(events: Events, ids: Vec<Id>) {
 }
 
 fn bind_element(events: Events, ids: Vec<Id>) -> Result<(), Box<dyn std::error::Error>> {
-    events.append(Event::BindingEnd);
+    events.append(Event::BindingConfirm);
 
     print_info!("Choose an element (use TAB for completion)");
 
@@ -210,7 +200,7 @@ fn bind_element(events: Events, ids: Vec<Id>) -> Result<(), Box<dyn std::error::
         if ids.contains(&id) {
             events.append(Event::BindingStart(id.clone()));
         } else {
-            print_error!("Unknown element ${}", id)
+            print_error!("Unknown element @{}", id)
         }
     }
     
@@ -238,14 +228,4 @@ fn continuous_binding(combinations: &Vec<KeyCombination>) -> Option<TermContinuo
         });
     }
    None
-}
-
-fn momentary_binding(combinations: &Vec<KeyCombination>) -> Option<TermMomentaryBinding> {
-    let len = combinations.len();
-    if len >= 1 {
-        return Some(TermMomentaryBinding{
-            trigger: combinations[len - 1].clone(),
-        });
-    }
-    None
 }
