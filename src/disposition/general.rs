@@ -145,6 +145,15 @@ pub struct Roller {
     pub references: Vec<Id>,
 }
 
+/**
+Relays an activation to referenced elements.
+*/
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Relay {
+    #[serde(default)]
+    pub references: Vec<Id>,
+}
+
 #[derive(Serialize, Deserialize, Clone, JsonSchema)]
 pub struct MemoryState {
     #[serde(rename = "$schema", skip_serializing_if = "Option::is_none")]
@@ -287,7 +296,15 @@ impl GeneralHandler {
                 } else {
                     false
                 }
-            }
+            },
+            Some(Element::Relay(relay)) => {
+                print_info!("relay @{} changed {}", id, value);
+
+                for reference in relay.references.clone() {
+                    self.events.prepend(Event::Change(reference, value));
+                }
+                false
+            },
             _ => false,
         };
 
@@ -327,6 +344,14 @@ impl GeneralHandler {
                 } else {
                     false
                 }
+            },
+            Some(Element::Relay(relay)) => {
+                print_info!("relay @{} activated {}", id, active);
+
+                for reference in relay.references.clone() {
+                    self.events.prepend(Event::Activate(reference, active));
+                }
+                false
             },
             Some(Element::Combination(combination)) => {
                 let mut modified = false;
@@ -368,16 +393,16 @@ impl GeneralHandler {
             let state = combination.state.clone();
 
             info!("combination recall @{}", id);
-            for id in combination.references.clone() {
-                match disposition.elements.get(&id) {
+            for reference in combination.references.clone() {
+                match disposition.elements.get(&reference) {
                     Some(Element::Coupler(_) | Element::MidiAction(_)) => {
-                        if let Some(Active(active)) = state.get(&id) {
-                            self.events.prepend(Event::Activate(id.clone(), active.clone()));
+                        if let Some(Active(active)) = state.get(&reference) {
+                            self.events.prepend(Event::Activate(reference.clone(), active.clone()));
                         }
                     },
                     Some(Element::Roller(_) | Element::MidiRange(_)) => {
-                        if let Some(Value(value)) = state.get(&id) {
-                            self.events.prepend(Event::Change(id.clone(), value.clone()));
+                        if let Some(Value(value)) = state.get(&reference) {
+                            self.events.prepend(Event::Change(reference.clone(), value.clone()));
                         }
                     },
                     _ => {},
@@ -387,7 +412,7 @@ impl GeneralHandler {
     }
 
     fn combination_capture(&self, disposition: &mut Disposition, id: Id) {
-        let ids = if let Some(Element::Combination(combination)) = disposition.elements.get(&id) {
+        let references = if let Some(Element::Combination(combination)) = disposition.elements.get(&id) {
             info!("combination capture @{}", id);
             combination.references.clone()
         } else {
@@ -395,21 +420,21 @@ impl GeneralHandler {
             return;
         };
 
-        let state: CombinationState = ids
+        let state: CombinationState = references
             .into_iter()
-            .filter_map(|id| {
-                match disposition.elements.get_mut(&id) {
+            .filter_map(|reference| {
+                match disposition.elements.get_mut(&reference) {
                     Some(Element::Coupler(coupler)) => {
-                        Some((id, Active(coupler.active)))
+                        Some((reference, Active(coupler.active)))
                     },
                     Some(Element::MidiAction(action)) => {
-                        Some((id, Active(action.active)))
+                        Some((reference, Active(action.active)))
                     },
                     Some(Element::MidiRange(range)) => {
-                        Some((id, Value(range.value)))
+                        Some((reference, Value(range.value)))
                     },
                     Some(Element::Roller(roller)) => {
-                        Some((id, Value(roller.value)))
+                        Some((reference, Value(roller.value)))
                     }
                     _ => None,
                 }
@@ -426,14 +451,14 @@ impl GeneralHandler {
     
     fn roller_roll(&self, disposition: &mut Disposition, id: Id, previous_index: usize, new_index: usize) {
         if let Some(Element::Roller(roller)) = disposition.elements.get_mut(&id) {
-            if let Some(id) = roller.references.get(previous_index).cloned() {
-                self.events.prepend(Event::Activate(id, false));
+            if let Some(reference) = roller.references.get(previous_index).cloned() {
+                self.events.prepend(Event::Activate(reference, false));
             }
         }
 
         if let Some(Element::Roller(roller)) = disposition.elements.get_mut(&id) {
-            if let Some(id) = roller.references.get(new_index).cloned() {
-                self.events.prepend(Event::Activate(id, true));
+            if let Some(reference) = roller.references.get(new_index).cloned() {
+                self.events.prepend(Event::Activate(reference, true));
             }
         }
     }

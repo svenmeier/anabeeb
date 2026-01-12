@@ -31,6 +31,9 @@
         "combination2"
       ]
     },
+    "relay": {
+      "type": "Relay"
+    },
     "console1": {
       "type": "MidiConsole",
       "references": [

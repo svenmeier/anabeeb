@@ -4,7 +4,7 @@ use crokey::KeyCombination;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use crate::disposition::fluidsynth::FluidsynthSound;
-use crate::disposition::general::{Captor, Combination, Coupler, Memory, Roller};
+use crate::disposition::general::{Captor, Combination, Coupler, Memory, Relay, Roller};
 use crate::disposition::midi::{MidiConsole, MidiMessage};
 use crate::disposition::midi_in::{MidiKeyboard};
 use crate::disposition::midi_out::{MidiAction, MidiRange, MidiRank, MidiSound};
@@ -76,8 +76,9 @@ impl Binding {
 pub enum Element {
     Coupler(Coupler),
     Captor(Captor),
-    Combination(Combination),
     Roller(Roller),
+    Relay(Relay),
+    Combination(Combination),
     Memory(Memory),
     RestConsole(RestConsole),
     TermConsole(TermConsole),

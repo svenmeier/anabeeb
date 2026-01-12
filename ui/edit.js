@@ -147,7 +147,7 @@
         });
 
         editor.download.addEventListener("click", function () {
-            const json = `window.disposition =  ${JSON.stringify(disposition)}`;
+            const json = `${JSON.stringify(disposition)}`;
             const blob = new Blob([json], {type: "text/json"});
 
             editor.download.href = URL.createObjectURL(blob);
@@ -166,7 +166,9 @@
 
         editor.add.addEventListener("click", function () {
             const ids = Array.from(editor.elements.selectedOptions).map(o => o.value);
-            var { left, top } = editor.root.getBoundingClientRect();
+            let {left, top} = editor.root.getBoundingClientRect();
+            left += window.scrollX;
+            top += window.scrollY;
 
             ids.forEach(id => {
                 const type = elements[id].type;
