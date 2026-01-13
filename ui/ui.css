@@ -27,7 +27,7 @@ body {
     box-shadow:
             inset -2px -2px 6px #ffffffaa,
             inset 2px 2px 6px #40341d,
-            0 5px 10px rgba(0,0,0,0.5);
+            0 5px 10px rgba(0,0,0,0.8);
     cursor: pointer;
     position: relative;
     transition: all 0.25s ease-in-out;
@@ -40,7 +40,7 @@ body {
             inset -2px -2px 4px #fff0c0,
             inset 2px 2px 4px #6a541e,
             0 10px 16px rgba(0,0,0,0.6);
-    transform: scale(1.15) translateY(-3px);
+    transform: scale(1.15);
 }
 .stop label {
     white-space: pre-line;
