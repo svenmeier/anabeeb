@@ -85,7 +85,7 @@
             const element = disposition.elements[editing.id];
             element.template = value;
             anabeeb.added(editing.id, element);
-            initElement(editing.id, element);
+            initElement(editing.id);
         })
         editor.scale.addEventListener('change', () => {
             const value = editor.scale.value;
@@ -95,12 +95,10 @@
         })
 
         editor.uri.addEventListener('change', () => {
-            const value = editor.uri.value;
-            disposition.uri = value;
+            disposition.uri = editor.uri.value;
         })
         editor.grid.addEventListener('change', () => {
-            const value = editor.grid.value;
-            disposition.grid = value;
+            disposition.grid = editor.grid.value;
         })
 
         editor.move.addEventListener("mousedown", function (event) {
@@ -125,7 +123,7 @@
                 anabeeb.position(editor.root, event.clientX - moving.editorX, event.clientY - moving.editorY);
             }
         });
-        document.addEventListener("mouseup", event => {
+        document.addEventListener("mouseup", () => {
             if (moving) {
                 moving = undefined;
                 document.body.style.userSelect = "";
@@ -263,7 +261,7 @@
             editor.elements.hidden = false;
             editor.elements.replaceChildren(
                 ...Object.entries(elements)
-                    .map(([id, element]) => new Option(id, id))
+                    .map(([id, _]) => new Option(id, id))
             );
 
             editor.move.hidden = true;
@@ -277,7 +275,7 @@
         editor.root.show();
     }
 
-    function initElement(id, element) {
+    function initElement(id) {
         const node = document.getElementById(id);
 
         node.title = id;
@@ -296,6 +294,6 @@
             elements = json.elements;
         });
 
-        Object.entries(disposition.elements).forEach(([id, element]) => initElement(id, element));
+        Object.entries(disposition.elements).forEach(([id, _]) => initElement(id));
     });
 })();
