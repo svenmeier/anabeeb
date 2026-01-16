@@ -80,6 +80,9 @@
     background-color: white;
     color: rgba(0, 123, 255, 1.0);
 }
+#editor select option.marked {
+    font-weight: bold;
+}
 
 #editor a {
     display: inline-block;

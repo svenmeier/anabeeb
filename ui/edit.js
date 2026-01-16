@@ -12,18 +12,15 @@
         return Math.round(n / disposition.grid) * disposition.grid;
     }
 
-    function bindStart(node) {
-        const id = node.id;
+    function bindStart(id) {
         anabeeb.post(`/binding/${id}/start`);
     }
 
-    function bindCancel(node) {
-        const id = node.id;
+    function bindCancel(id) {
         anabeeb.post(`/binding/${id}/cancel`);
     }
 
-    function bindConfirm(node) {
-        const id = node.id;
+    function bindConfirm(id) {
         anabeeb.post(`/binding/${id}/confirm`);
     }
 
@@ -76,22 +73,21 @@
 
         editor.label.addEventListener('input', () => {
             const value = editor.label.value.trim();
-            editing.querySelector('label').textContent = value;
-            disposition.elements[editing.id].label = value;
+            disposition.elements[editing].label = value;
+            document.getElementById(editing).querySelector('label').textContent = value;
         });
 
         editor.template.addEventListener('change', () => {
             const value = editor.template.value;
-            const element = disposition.elements[editing.id];
+            const element = disposition.elements[editing];
             element.template = value;
-            anabeeb.added(editing.id, element);
-            initElement(editing.id);
+            anabeeb.added(editing, element);
+            initElement(editing);
         })
         editor.scale.addEventListener('change', () => {
             const value = editor.scale.value;
-            editing.style.scale = value;
-            const element = disposition.elements[editing.id];
-            element.scale = value;
+            disposition.elements[editing].scale = value;
+            document.getElementById(editing).style.scale = value;
         })
 
         editor.uri.addEventListener('change', () => {
@@ -102,7 +98,7 @@
         })
 
         editor.move.addEventListener("mousedown", function (event) {
-            const editingRect = editing.getBoundingClientRect();
+            const editingRect = document.getElementById(editing).getBoundingClientRect();
             const editorRect = editor.root.getBoundingClientRect();
             moving = {
                 editingX: event.clientX - editingRect.left,
@@ -116,9 +112,9 @@
             if (moving) {
                 const x = grid(event.clientX - moving.editingX);
                 const y = grid(event.clientY - moving.editingY);
-                disposition.elements[editing.id].x = x;
-                disposition.elements[editing.id].y = y;
-                anabeeb.position(editing, x, y);
+                disposition.elements[editing].x = x;
+                disposition.elements[editing].y = y;
+                anabeeb.position(document.getElementById(editing), x, y);
 
                 anabeeb.position(editor.root, event.clientX - moving.editorX, event.clientY - moving.editorY);
             }
@@ -156,8 +152,8 @@
         });
 
         editor.remove.addEventListener("click", function () {
-            editing.remove();
-            disposition.elements[editing.id] = undefined;
+            document.getElementById(editing).remove();
+            disposition.elements[editing] = undefined;
 
             hideEditor();
         });
@@ -189,7 +185,11 @@
                 top += 50;
             });
 
-            hideEditor();
+            if (ids.length === 1) {
+                showEditor(ids[0]);
+            } else {
+                hideEditor();
+            }
         });
 
         document.addEventListener("contextmenu", (event) => {
@@ -205,38 +205,44 @@
 
     function hideEditor() {
         if (editing) {
-            editing.classList.remove("editing");
+            if (binding) {
+                editor.root.classList.remove('binding');
+                bindCancel(editing)
+                binding = false;
+            }
+
+            const node = document.getElementById(editing);
+            node?.classList.remove("editing");
             editing = undefined;
-        }
-        if (binding) {
-            editor.root.classList.remove('binding');
-            bindCancel(editing)
-            binding = false;
         }
 
         editor.root.close();
     }
 
-    function showEditor(node, left, top) {
+    function showEditor(id, left, top) {
         hideEditor();
 
-        editing = node;
+        editing = id;
         if (editing) {
-            editing.classList.add("editing");
+            const node = document.getElementById(id);
+            node.classList.add("editing");
+            const rect = node.getBoundingClientRect();
+            left = rect.left + rect.width/2;
+            top = rect.top + rect.height/2;
 
             editor.id.hidden = false;
-            editor.id.textContent = editing.id;
+            editor.id.textContent = id;
 
             editor.label.hidden = false;
-            editor.label.value = disposition.elements[editing.id].label;
+            editor.label.value = disposition.elements[id].label;
 
             editor.template.hidden = false;
-            editor.template.replaceChildren(...getTemplates(elements[editing.id].type)
+            editor.template.replaceChildren(...getTemplates(elements[id].type)
                 .map((template) => new Option(template, template))
             );
-            editor.template.value = disposition.elements[editing.id].template;
+            editor.template.value = disposition.elements[id].template;
             editor.scale.hidden = false;
-            editor.scale.value = disposition.elements[editing.id].scale || 1.0;
+            editor.scale.value = disposition.elements[id].scale || 1.0;
 
             editor.uri.hidden = true;
             editor.grid.hidden = true;
@@ -261,7 +267,16 @@
             editor.elements.hidden = false;
             editor.elements.replaceChildren(
                 ...Object.entries(elements)
-                    .map(([id, _]) => new Option(id, id))
+                    .map(([id, _]) => {
+                        const option = new Option(id, id);
+                        if (disposition.elements[id]) {
+                            option.classList.add('marked');
+                            option.addEventListener("dblclick", () => {
+                                showEditor(id)
+                            });
+                        }
+                        return option;
+                    })
             );
 
             editor.move.hidden = true;
@@ -283,7 +298,7 @@
             event.preventDefault();
             event.stopImmediatePropagation();
 
-            showEditor(node, event.pageX, event.pageY);
+            showEditor(id);
         });
     }
 
