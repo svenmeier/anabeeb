@@ -8,6 +8,15 @@
 
     let elements = undefined;
 
+    function change(id, values, optionalValues) {
+        anabeeb.change(id, values, optionalValues);
+
+        if (editing) {
+            const node = document.getElementById(editing);
+            node.classList.add("editing");
+        }
+    }
+
     function grid(n) {
         return Math.round(n / disposition.grid) * disposition.grid;
     }
@@ -72,22 +81,20 @@
         });
 
         editor.label.addEventListener('input', () => {
-            const value = editor.label.value.trim();
-            disposition.elements[editing].label = value;
-            document.getElementById(editing).querySelector('label').textContent = value;
+            change(editing, {
+                label: editor.label.value.trim(),
+            });
         });
 
         editor.template.addEventListener('change', () => {
-            const value = editor.template.value;
-            const element = disposition.elements[editing];
-            element.template = value;
-            anabeeb.added(editing, element);
-            initElement(editing);
+            change(editing, {
+                template: editor.template.value,
+            });
         })
         editor.scale.addEventListener('change', () => {
-            const value = editor.scale.value;
-            disposition.elements[editing].scale = value;
-            document.getElementById(editing).style.scale = value;
+            change(editing, {
+                scale: editor.scale.value,
+            });
         })
 
         editor.uri.addEventListener('change', () => {
@@ -110,12 +117,10 @@
         });
         document.addEventListener("mousemove", event => {
             if (moving) {
-                const x = grid(event.clientX - moving.editingX);
-                const y = grid(event.clientY - moving.editingY);
-                disposition.elements[editing].x = x;
-                disposition.elements[editing].y = y;
-                anabeeb.position(document.getElementById(editing), x, y);
-
+                change(editing, {
+                    x: grid(event.clientX - moving.editingX),
+                    y: grid(event.clientY - moving.editingY),
+                });
                 anabeeb.position(editor.root, event.clientX - moving.editorX, event.clientY - moving.editorY);
             }
         });
@@ -152,8 +157,7 @@
         });
 
         editor.remove.addEventListener("click", function () {
-            document.getElementById(editing).remove();
-            disposition.elements[editing] = undefined;
+            anabeeb.remove(editing);
 
             hideEditor();
         });
@@ -168,15 +172,13 @@
                 const type = elements[id].type;
                 const templates = getTemplates(type);
                 if (templates?.length) {
-                    const element = {
-                        label: id,
+                    change(id, {
                         x: left,
                         y: top,
-                        template: templates[0]
-                    };
-                    disposition.elements[id] = element;
-                    anabeeb.added(id, element);
-                    initElement(id, element);
+                    }, {
+                        label: id,
+                        template: templates[0],
+                    });
                 } else {
                     console.error(`no template found for element ${type}`)
                 }
@@ -192,12 +194,6 @@
             }
         });
 
-        document.addEventListener("contextmenu", (event) => {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-
-            showEditor(undefined, event.pageX, event.pageY);
-        });
         document.addEventListener("mousedown", () => {
             hideEditor();
         });
@@ -224,25 +220,25 @@
 
         editing = id;
         if (editing) {
-            const node = document.getElementById(id);
+            const node = document.getElementById(editing);
             node.classList.add("editing");
             const rect = node.getBoundingClientRect();
             left = rect.left + rect.width/2;
             top = rect.top + rect.height/2;
 
             editor.id.hidden = false;
-            editor.id.textContent = id;
+            editor.id.textContent = editing;
 
             editor.label.hidden = false;
-            editor.label.value = disposition.elements[id].label;
+            editor.label.value = disposition.elements[editing].label;
 
             editor.template.hidden = false;
-            editor.template.replaceChildren(...getTemplates(elements[id].type)
+            editor.template.replaceChildren(...getTemplates(elements[editing].type)
                 .map((template) => new Option(template, template))
             );
-            editor.template.value = disposition.elements[id].template;
+            editor.template.value = disposition.elements[editing].template;
             editor.scale.hidden = false;
-            editor.scale.value = disposition.elements[id].scale || 1.0;
+            editor.scale.value = disposition.elements[editing].scale || 1.0;
 
             editor.uri.hidden = true;
             editor.grid.hidden = true;
@@ -290,25 +286,22 @@
         editor.root.show();
     }
 
-    function initElement(id) {
-        const node = document.getElementById(id);
-
-        node.title = id;
-        node.addEventListener("contextmenu", (event) => {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-
-            showEditor(id);
-        });
-    }
-
     window.addEventListener('load', () => {
         initEditor();
 
         anabeeb.get("/element").then(json => {
             elements = json.elements;
-        });
 
-        Object.entries(disposition.elements).forEach(([id, _]) => initElement(id));
+            document.addEventListener("contextmenu", (event) => {
+                const node = event.target.closest("[data-element_template]");
+                if (node) {
+                    showEditor(node.id);
+                } else {
+                    showEditor(undefined, event.pageX, event.pageY);
+                }
+                event.preventDefault();
+                event.stopImmediatePropagation();
+            });
+        });
     });
 })();

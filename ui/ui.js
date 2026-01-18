@@ -16,8 +16,19 @@
             return request(path);
         },
 
-        added: (id, element) => {
-            initElement(id, element);
+        remove: (id) => {
+            disposition.elements[id] = undefined;
+
+            document.getElementById(id)?.remove();
+        },
+
+        change: (id, values, optionalValues) => {
+            disposition.elements[id] = {
+                ...(optionalValues || {}),
+                ...(disposition.elements[id] || {}),
+                ...values,
+            }
+            initNode(id, disposition.elements[id]);
         }
     };
 
@@ -41,7 +52,7 @@
     }
 
     function updateElement(id, node, element) {
-        const register = !node.dataset?.listening;
+        const listening = node.dataset?.ui_listening;
 
         const input = node.querySelector('input');
         switch (element.type) {
@@ -49,11 +60,11 @@
             case 'MidiAction':
             case 'Captor':
                 input.checked = (element.active === true);
-                if (register) node.addEventListener("click", () => activate(id, input.checked));
+                if (!listening) node.addEventListener("click", () => activate(id, input.checked));
                 break;
             case 'Combination':
                 input.checked = (element.active === true);
-                if (register) node.addEventListener("click", () => {
+                if (!listening) node.addEventListener("click", () => {
                     input.checked = true;
                     activate(id, true);
                 });
@@ -63,11 +74,11 @@
                 input.min = element.min;
                 input.max = element.max;
                 input.value = element.value;
-                if (register) node.addEventListener("input", () => change(element.id, Number(input.value)));
+                if (!listening) node.addEventListener("input", () => change(id, Number(input.value)));
                 break;
         }
 
-        node.dataset.listening = "true";
+        node.dataset.ui_listening = "true";
     }
 
     function showError(error) {
@@ -77,34 +88,40 @@
         errors.showModal();
     }
 
-    function initElement(id, element) {
-        const parentNode = document.querySelector(".elements");
+    function initNode(id, element) {
+        let node = document.getElementById(id);
+        if (!node || node.dataset.element_template !== element.template) {
+            document.getElementById(id)?.remove();
 
-        const template = document.querySelector(`[data-template="${element.template}"]`);
-        if (!template) {
-            console.warn(`No template "${element.template}"`);
-            return;
+            const parentNode = document.querySelector(".elements");
+
+            const template = document.querySelector(`[data-template="${element.template}"]`);
+            if (!template) {
+                console.warn(`No template "${element.template}"`);
+                return;
+            }
+
+            node = template.content.firstElementChild.cloneNode(true);
+            node.id = id;
+            node.dataset.element_template = element.template;
+            parentNode.appendChild(node);
+
+            anabeeb.get(`/element/${id}`)
+                .then(json => {
+                    updateElement(id, node, json.elements[id]);
+                });
         }
 
-        const node = template.content.firstElementChild.cloneNode(true);
-        const input = node.querySelector('input');
-        const label = node.querySelector('label');
-
-        node.id = id;
         anabeeb.position(node, element.x, element.y);
         node.style.scale = element.scale || 1;
+
+        const input = node.querySelector('input');
+        const label = node.querySelector('label');
         if (input && label) {
             input.id = id + '-input';
             label.setAttribute('for', input.id);
         }
         label.textContent = element.label;
-        document.getElementById(id)?.remove();
-        parentNode.appendChild(node);
-
-        anabeeb.get(`/element/${id}`)
-            .then(json => {
-                updateElement(id, node, json.elements[id]);
-            });
     }
 
     function initWebsocket() {
@@ -124,7 +141,7 @@
     }
 
     window.addEventListener('load', () => {
-        Object.entries(disposition.elements).forEach(([id, element]) => initElement(id, element));
+        Object.entries(disposition.elements).forEach(([id, element]) => initNode(id, element));
 
         initWebsocket();
     });
