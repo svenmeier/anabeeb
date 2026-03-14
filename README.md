@@ -15,7 +15,9 @@ The user interface is built with HTML, CSS, and a lightweight JavaScript library
 engines of modern browsers.
 This approach keeps the core organ processing fast and efficient while allowing the UI to run independently — even on a
 different device within the same network.
-An experimental HTML user interface is provided, offering limited editing capabilities via contextmenu.
+An experimental HTML user interface is provided, offering limited editing capabilities via contextmenu:
+
+![screenshot](./ui/screenshot.png)
 
 Organ Disposition
 -----------------
