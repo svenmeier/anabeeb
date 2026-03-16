@@ -1009,6 +1009,13 @@
           "type": "number",
           "format": "double"
         },
+        "synth_reverb_engine": {
+          "title": "engine: free, fdn, lex, dat",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "audio_periods": {
           "type": "integer",
           "format": "int32"

@@ -51,6 +51,9 @@ pub struct FluidsynthSettings {
     synth_reverb_level: f64,
     synth_reverb_width: f64,
     synth_reverb_room_size: f64,
+    /// # engine: free, fdn, lex, dat
+    #[serde(skip_serializing_if = "Option::is_none")]
+    synth_reverb_engine: Option<String>,
     audio_periods: i32,
     audio_period_size: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,6 +122,9 @@ fn create_synth(id: &Id, path: &str, sound: &FluidsynthSound) -> Result<(Synth, 
     settings.setnum("synth.reverb.level", sound.settings.synth_reverb_level);
     settings.setnum("synth.reverb.width", sound.settings.synth_reverb_width);
     settings.setnum("synth.reverb.room-size", sound.settings.synth_reverb_room_size);
+    if let Some(engine) = &sound.settings.synth_reverb_engine {
+        settings.setstr("synth.reverb.engine", engine);
+    }
 
     settings.setint("audio.periods", sound.settings.audio_periods);
     settings.setint("audio.period-size", sound.settings.audio_period_size);
